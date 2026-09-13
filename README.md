@@ -1,107 +1,105 @@
-<p align="center">
-  <img src="title.png">
-</p>
+# BetterJoy Direct
 
-# BetterJoy v7.0
-Allows the Nintendo Switch Pro Controller, Joycons, and Switch SNES controller to be used with [Cemu](http://cemu.info/) using [Cemuhook](https://sshnuke.net/cemuhook/), [Citra](https://citra-emu.org/), [Dolphin](https://dolphin-emu.org/), [Yuzu](https://yuzu-emu.org/), and system-wide with generic XInput support.
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-It also allows using the gyro to control your mouse and remap the special buttons (SL, SR, Capture) to key bindings of your choice.
+BetterJoy Direct is a Windows x64 fork of [Davidobot/BetterJoy](https://github.com/Davidobot/BetterJoy), based on upstream commit `b6715638a3ed1084f8968e8cafebbc6fe2ed0096`.
 
-If anyone would like to donate (for whatever reason), [you can do so here](https://www.paypal.me/DavidKhachaturov/5). 
+It keeps BetterJoy's Nintendo Switch controller to Xbox 360/XInput pipeline while making reconnects safer, exposing gyro controls at runtime, simplifying desktop input behavior, and replacing the legacy window with a resizable bilingual interface.
 
-#### Personal note
-Thank you for using my software and all the constructive feedback I've been getting about it. I started writing this project a while back and have since then learnt a lot more about programming and software development in general. I don't have too much time to work on this project, but I will try to fix bugs when and if they arise. Thank you for your patience in that regard too!
+![BetterJoy Direct English interface](docs/images/interface-en.png)
 
-It's been quite a wild ride, with nearly **590k** (!!) official download on GitHub and probably many more through the nightlies. I think this project was responsible for both software jobs I landed so far, so I am quite proud of it.
+## Highlights
 
-### Screenshot
-![Example](https://user-images.githubusercontent.com/16619943/67919451-bf8e5680-fb76-11e9-995e-7193b87548e1.png)
+- Converts Switch Pro Controllers and Joy-Cons connected over USB or Bluetooth into virtual Xbox 360/XInput controllers through ViGEmBus.
+- Validates HID input reports before exporting buttons or axes and waits for a neutral release baseline after connection or reconnection.
+- Clears stale Windows XInput axes when a virtual controller is created.
+- Offers live gyro modes: off, left stick, right stick, or mouse.
+- Provides optional Steam shortcuts: Capture sends `F12`; Home sends `Shift+Tab`.
+- Uses a modern Chinese/English interface with four controller cards, connection logs, Windows Bluetooth and controller-test shortcuts, and resizable/tray-safe window behavior.
+- Uses a short, strength-limited locate rumble instead of the original strong pulse.
+- Removes the misleading custom keyboard/mouse mapping toggle and its global input hooks. Standard buttons and sticks remain Xbox input.
 
-# Downloads
-Go to the [Releases tab](https://github.com/Davidobot/BetterJoy/releases/)!
+## Download and requirements
 
-# How to use
-1. Install drivers
-    1. Read the READMEs (they're there for a reason!)
-    1. Run *Drivers/ViGEmBus_Setup_1.16.116.exe*
-    1. Restart your computer
-2. Run *BetterJoyForCemu.exe* 
-    1. Run as Administrator if your keyboard/mouse button mappings don't work
-3. Connect your controllers.
-4. Start Cemu and ensure CemuHook has the controller selected.
-    1. If using Joycons, CemuHook will detect two controllers - each will give all buttons, but choosing one over the other just chooses preference for which hand to use for gyro controls.
-5. Go into *Input Settings*, choose XInput as a source and assign buttons normally.
-    1. If you don't want to do this for some reason, just have one input profile set up with *Wii U Gamepad* as the controller and enable "Also use for buttons/axes" under *GamePad motion source*. **This is no longer required as of version 3**
-    2. Turn rumble up to 70-80% if you want rumble.
+Download the current portable ZIP from [GitHub Releases](https://github.com/zzirui321-rgb/BetterJoy-Direct/releases), extract the whole archive, and run `BetterJoyForCemu.exe`.
 
-* As of version 3, you can use the pro controller and Joycons as normal xbox controllers on your PC - try it with Steam!
+Requirements:
 
-# More Info
-Check out the [wiki](https://github.com/Davidobot/BetterJoy/wiki)! There, you'll find all sorts of goodness such as the changelog, description of app settings, the FAQ and Problems page, and info on how to make BetterJoy work with Steam *better*.
+- Windows 10 or Windows 11 x64
+- An installed [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver
+- A Switch Pro Controller or supported Joy-Con connection over USB or Bluetooth
 
-# Connecting and Disconnecting the Controller
-## Bluetooth Mode
- * Hold down the small button (sync) on the top of the controller for 5 seconds - this puts the controller into broadcasting mode.
- * Search for it in your bluetooth settings and pair normally.
- * To disconnect the controller - hold the home button (or capture button) down for 2 seconds (or press the sync button). To reconnect - press any button on your controller.
+The portable package does not install or change drivers, Steam settings, HidHide, or Windows device-hiding rules. ViGEmBus has been retired upstream; this project reuses the installed driver and does not replace its kernel component.
 
-## USB Mode
- * Plug the controller into your computer.
- 
-## Disconnecting \[Windows 10]
-1. Go into "Bluetooth and other devices settings"
-1. Under the first category "Mouse, keyboard, & pen", there should be the pro controller.
-1. Click on it and a "Remove" button will be revealed.
-1. Press the "Remove" button
+## First use
 
-# Building
+1. Close other BetterJoy instances and controller mappers that could open the same physical device.
+2. Connect by USB, or hold the controller's sync button and pair it in Windows Bluetooth settings.
+3. After a connection or reconnection, release every button and wait at least 300 ms for the neutral-input gate.
+4. Select **Test Xbox input** to open the Windows game-controller panel, then verify sticks and buttons there or in a game.
 
-## Visual Studio (IDE)
+Regular buttons and sticks produce XInput. Windows Explorer does not use XInput for desktop navigation, so no desktop response is expected. Gyro mouse mode produces pointer movement directly. A game may also reject simultaneous mouse and gamepad input or switch between the two input modes.
 
-1. If you didn't already, install **Visual Studio Community 2019** via
-   [the official guide](https://docs.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2019).
-   When asked about the workloads, select **.NET Desktop Development**.
-2. Get the code project via Git or by using the *Download ZIP* button.
-3. Open Visual Studio Community and open the solution file (*BetterJoy.sln*).
-4. Open the NuGet manager via *Tools > NuGet Package Manager > Package Manager Settings*.
-5. You should have a warning mentioning *restoring your packages*. Click on the **Restore** button.
-6. You can now run and build BetterJoy.
+## Runtime controls
 
-## Visual Studio Build Tools (CLI)
-1. Download **Visual Studio Build Tools** via
-   [the official link](https://visualstudio.microsoft.com/it/downloads/#build-tools-for-visual-studio-2019).
-2. Install **NuGet** by following
-   [the official guide](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools#nugetexe-cli).
-   You should follow the section for ***nuget.exe***.
-   Verify that you can run `nuget` from your favourite terminal.
-3. Get the code project via Git or by using the *Download ZIP* button.
-4. Open a terminal (*cmd*, *PowerShell*, ...) and enter the folder with the source code.
-5. Restore the NuGet dependencies by running: `nuget restore`
-6. Now build the app with MSBuild:
-   ```
-   msbuild .\BetterJoy.sln -p:Configuration=CONFIGURATION -p:Platform=PLATFORM -t:Rebuild
-   ```
-   The available values for **CONFIGURATION** are *Release* and *Debug*.
-   The available values for **PLATFORM** are *x86* and *x64* (you want the latter 99.99% of the time).
-7. You have now built the app. See the next section for locating the binaries.
+| Control | Behavior |
+|---|---|
+| Steam shortcuts | Capture → `F12`; Home → `Shift+Tab` |
+| Gyro off | Motion data is read but not converted to game input |
+| Gyro → left stick | Adds gyro movement to the virtual left stick |
+| Gyro → right stick | Adds gyro movement to the virtual right stick; recommended for broad game compatibility |
+| Gyro → mouse | Moves the Windows pointer directly and does not require another mapping toggle |
 
-## Binaries location
-The built binaries are located under
+Xbox/XInput has no standard native gyro field. Software with DSU/Cemuhook support can instead enable the optional motion server. Local Steam games may feel smoother when Steam Input handles the physical Switch controller directly; avoid letting Steam and BetterJoy map the same physical device at the same time.
 
-*BetterJoyForCemu\bin\PLATFORM\CONFIGURATION*
+## Build from source
 
-where `PLATFORM` and `CONFIGURATION` are the one provided at build time. 
+Building requires Windows, the .NET Framework 4.6.1 Developer Pack or a compatible newer 4.x build environment, and Python 3. Dependencies are restored into the repository rather than installed globally.
 
-# Acknowledgements
-A massive thanks goes out to [rajkosto](https://github.com/rajkosto/) for putting up with 17 emails and replying very quickly to my silly queries. The UDP server is also mostly taken from his [ScpToolkit](https://github.com/rajkosto/ScpToolkit) repo.
+```powershell
+python tools/restore.py
+.\build-direct.ps1
+.\test-direct.ps1
+.\test-features.ps1
+```
 
-Also I am very grateful to [mfosse](https://github.com/mfosse/JoyCon-Driver) for pointing me in the right direction and to [Looking-Glass](https://github.com/Looking-Glass/JoyconLib) without whom I would not be able to figure anything out. (being honest here - the joycon code is his)
+Additional virtual-controller verification is available when ViGEmBus is installed:
 
-Many thanks to [nefarius](https://github.com/ViGEm/ViGEmBus) for his ViGEm project! Apologies and appreciation go out to [epigramx](https://github.com/epigramx), creator of *WiimoteHook*, for giving me the driver idea and for letting me keep using his installation batch script even though I took it without permission. Thanks go out to [MTCKC](https://github.com/MTCKC/ProconXInput) for inspiration and batch files.
+```powershell
+.\test-xbox-output.ps1
+```
 
-A last thanks goes out to [dekuNukem](https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering) for his documentation, especially on the SPI calibration data and the IMU sensor notes!
+The portable package is generated with:
 
-Massive *thank you* to **all** code contributors!
+```powershell
+python tools/package-direct.py
+```
 
-Icons (modified): "[Switch Pro Controller](https://thenounproject.com/term/nintendo-switch/930119/)", "[
-Switch Detachable Controller Left](https://thenounproject.com/remsing/uploads/?i=930115)", "[Switch Detachable Controller Right](https://thenounproject.com/remsing/uploads/?i=930121)" icons by Chad Remsing from [the Noun Project](http://thenounproject.com/). [Super Nintendo Controller](https://thenounproject.com/themizarkshow/collection/vectogram/?i=193592) icon by Mark Davis from the [the Noun Project](http://thenounproject.com/); icon modified by [Amy Alexander](https://www.linkedin.com/in/-amy-alexander/). [Nintendo 64 Controller](https://thenounproject.com/icon/game-controller-193588/) icon by Mark Davis from the [the Noun Project](http://thenounproject.com/); icon modified by [Gino Moena](https://www.github.com/GinoMoena).
+Generated binaries, hardware logs, downloaded tool archives, and build caches are excluded from Git. Release ZIP files belong in GitHub Releases rather than repository history.
+
+## Verification status
+
+- 343 input regression checks cover report bounds, all 256 report IDs, duplicate timestamps and wraparound, reconnect release gating, deadzones, invalid calibration, Steam shortcut edges, gyro Y direction, Guide suppression, paired Joy-Con shortcut ownership, and removal of legacy keyboard/mouse hooks.
+- 32 bilingual UI strings and runtime language, Steam shortcut, gyro, resize, and tray-restore behaviors are covered by feature regression tests.
+- The virtual Xbox lifecycle passed three consecutive create, move, neutralize, and disconnect cycles on the development machine.
+- A physical Switch Pro Controller Bluetooth session recorded 704 XInput samples, a physical disconnect, a successful automatic reconnect, neutral final axes, and no output error.
+
+Switch Pro Bluetooth is the verified hardware path. USB, other controller models, individual games, anti-cheat systems, and specific remote-control software still require testing in their own environments.
+
+Remote-control software must provide its own gamepad-forwarding channel; BetterJoy Direct cannot add controller transport to an arbitrary remote protocol.
+
+## Documentation
+
+- [Feature and configuration reference — 中文](docs/FEATURES.zh-CN.md)
+- [Development journey — English](docs/DEVELOPMENT-JOURNEY.md)
+- [开发历程 — 中文](docs/DEVELOPMENT-JOURNEY.zh-CN.md)
+- [Architecture decision](docs/direct-mode-decision.md)
+- [Changelog](CHANGELOG.md)
+
+## Upstream and license
+
+BetterJoy Direct is an independent derivative of [Davidobot/BetterJoy](https://github.com/Davidobot/BetterJoy). It is not an official BetterJoy release. Upstream authors and contributors retain credit for the original project.
+
+The [original upstream README](docs/UPSTREAM-README.md) is preserved with its acknowledgements, usage notes, and project history.
+
+The project remains under the repository's [MIT License](LICENSE). The portable archive also carries the available license or package metadata for bundled third-party dependencies.

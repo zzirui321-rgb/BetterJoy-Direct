@@ -118,7 +118,7 @@ namespace BetterJoyForCemu {
         private UInt16 deadzone2;
         private UInt16[] stick2_precal = { 0, 0 };
 
-        private bool stop_polling = true;
+        private volatile bool stop_polling = true;
         private bool imu_enabled = false;
         private Int16[] acc_r = { 0, 0, 0 };
         private Int16[] acc_neutral = { 0, 0, 0 };
@@ -314,13 +314,13 @@ namespace BetterJoyForCemu {
 
             connection = isUSB ? 0x01 : 0x02;
 
-            if (showAsXInput) {
+            if (showAsXInput && Program.emClient != null) {
                 out_xbox = new OutputControllerXbox360();
                 if (toRumble)
                     out_xbox.FeedbackReceived += ReceiveRumble;
             }
 
-            if (showAsDS4) {
+            if (showAsDS4 && Program.emClient != null) {
                 out_ds4 = new OutputControllerDualShock4();
                 if (toRumble)
                     out_ds4.FeedbackReceived += Ds4_FeedbackReceived;
@@ -422,6 +422,11 @@ namespace BetterJoyForCemu {
 
             }
             dump_calibration_data();
+            if (!(isSnes || is64)) {
+                for (int i = 0; i < 3; i++)
+                    if (acc_sensiti[i] <= acc_neutral[i] || gyr_sensiti[i] <= gyr_neutral[i])
+                        throw new System.IO.IOException("Invalid IMU calibration; reconnect the controller.");
+            }
 
             // Bluetooth manual pairing
             byte[] btmac_host = Program.btMAC.GetAddressBytes();
@@ -486,23 +491,27 @@ namespace BetterJoyForCemu {
         }
 
         private void BatteryChanged() { // battery changed level
+            if (form.InvokeRequired) {
+                form.BeginInvoke(new Action(BatteryChanged));
+                return;
+            }
             foreach (var v in form.con) {
                 if (v.Tag == this) {
                     switch (battery) {
                         case 4:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Green);
+                            v.BackColor = System.Drawing.Color.FromArgb(224, 241, 237);
                             break;
                         case 3:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Green);
+                            v.BackColor = System.Drawing.Color.FromArgb(224, 241, 237);
                             break;
                         case 2:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.GreenYellow);
+                            v.BackColor = System.Drawing.Color.FromArgb(237, 241, 218);
                             break;
                         case 1:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Orange);
+                            v.BackColor = System.Drawing.Color.FromArgb(255, 232, 204);
                             break;
                         default:
-                            v.BackColor = System.Drawing.Color.FromArgb(0xAA, System.Drawing.Color.Red);
+                            v.BackColor = System.Drawing.Color.FromArgb(253, 219, 217);
                             break;
                     }
                 }
@@ -521,6 +530,10 @@ namespace BetterJoyForCemu {
 
         public void Detach(bool close = false) {
             stop_polling = true;
+            // HID handles and virtual targets must outlive the reader thread.
+            if (PollThreadObj != null && PollThreadObj != Thread.CurrentThread && PollThreadObj.IsAlive)
+                PollThreadObj.Join();
+            active_gyro = false;
 
             if (out_xbox != null) {
                 out_xbox.Disconnect();
@@ -546,15 +559,26 @@ namespace BetterJoyForCemu {
             }
             if (close || state > state_.DROPPED) {
                 HIDapi.hid_close(handle);
+                handle = IntPtr.Zero;
             }
             state = state_.NOT_ATTACHED;
         }
 
         private byte ts_en;
+        private readonly InputReportGuard inputGuard = new InputReportGuard();
+        private readonly Stopwatch inputClock = Stopwatch.StartNew();
+        private readonly SteamShortcutRouter steamShortcutRouter =
+            new SteamShortcutRouter(new WindowsSteamShortcutEmitter());
+        public bool InputReady { get { return inputGuard.IsArmed; } }
+        public string LastOutputError { get; private set; }
         private int ReceiveRaw() {
             if (handle == IntPtr.Zero) return -2;
             byte[] raw_buf = new byte[report_len];
             int ret = HIDapi.hid_read_timeout(handle, raw_buf, new UIntPtr(report_len), 5);
+            if (stop_polling) return 0;
+
+            if (ret > 0 && !inputGuard.Accept(raw_buf, ret, !(isSnes || is64), inputClock.ElapsedMilliseconds))
+                return 0;
 
             if (ret > 0) {
                 // Process packets as soon as they come
@@ -567,7 +591,16 @@ namespace BetterJoyForCemu {
                         ProcessButtonsAndStick(raw_buf);
 
                         // process buttons here to have them affect DS4
-                        DoThingsWithButtons();
+                        if (inputGuard.IsArmed) DoThingsWithButtons();
+                        else {
+                            Array.Clear(buttons, 0, buttons.Length);
+                            Array.Clear(buttons_down, 0, buttons_down.Length);
+                            Array.Clear(buttons_up, 0, buttons_up.Length);
+                            Array.Clear(down_, 0, down_.Length);
+                            Array.Clear(stick, 0, stick.Length);
+                            Array.Clear(stick2, 0, stick2.Length);
+                            cur_rotation = AHRS.GetEulerAngles();
+                        }
 
                         int newbat = battery;
                         battery = (raw_buf[2] >> 4) / 2;
@@ -594,7 +627,7 @@ namespace BetterJoyForCemu {
                     try {
                         out_xbox.UpdateInput(MapToXbox360Input(this));
                     } catch (Exception e) {
-                        // ignore /shrug
+                        LastOutputError = e.Message;
                     }
                 }
 
@@ -607,78 +640,6 @@ namespace BetterJoyForCemu {
                 DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", ret, raw_buf[1]), DebugType.THREADING);
             }
             return ret;
-        }
-
-        private readonly Stopwatch shakeTimer = Stopwatch.StartNew(); //Setup a timer for measuring shake in milliseconds
-        private long shakedTime = 0;
-        private bool hasShaked;
-        void DetectShake() {
-            if (form.shakeInputEnabled) {
-                long currentShakeTime = shakeTimer.ElapsedMilliseconds;
-
-                // Shake detection logic
-                bool isShaking = GetAccel().LengthSquared() >= form.shakeSesitivity;
-                if (isShaking && currentShakeTime >= shakedTime + form.shakeDelay || isShaking && shakedTime == 0) {
-                    shakedTime = currentShakeTime;
-                    hasShaked = true;
-
-                    // Mapped shake key down
-                    Simulate(Config.Value("shake"), false, false);
-                    DebugPrint("Shaked at time: " + shakedTime.ToString(), DebugType.SHAKE);
-                }
-
-                // If controller was shaked then release mapped key after a small delay to simulate a button press, then reset hasShaked
-                if (hasShaked && currentShakeTime >= shakedTime + 10) {
-                    // Mapped shake key up
-                    Simulate(Config.Value("shake"), false, true);
-                    DebugPrint("Shake completed", DebugType.SHAKE);
-                    hasShaked = false;
-                }
-
-            } else {
-                shakeTimer.Stop();
-                return;
-            }
-        }
-
-        bool dragToggle = Boolean.Parse(ConfigurationManager.AppSettings["DragToggle"]);
-        Dictionary<int, bool> mouse_toggle_btn = new Dictionary<int, bool>();
-        private void Simulate(string s, bool click = true, bool up = false) {
-            if (s.StartsWith("key_")) {
-                WindowsInput.Events.KeyCode key = (WindowsInput.Events.KeyCode)Int32.Parse(s.Substring(4));
-                if (click) {
-                    WindowsInput.Simulate.Events().Click(key).Invoke();
-                } else {
-                    if (up) {
-                        WindowsInput.Simulate.Events().Release(key).Invoke();
-                    } else {
-                        WindowsInput.Simulate.Events().Hold(key).Invoke();
-                    }
-                }
-            } else if (s.StartsWith("mse_")) {
-                WindowsInput.Events.ButtonCode button = (WindowsInput.Events.ButtonCode)Int32.Parse(s.Substring(4));
-                if (click) {
-                    WindowsInput.Simulate.Events().Click(button).Invoke();
-                } else {
-                    if (dragToggle) {
-                        if (!up) {
-                            bool release;
-                            mouse_toggle_btn.TryGetValue((int)button, out release);
-                            if (release)
-                                WindowsInput.Simulate.Events().Release(button).Invoke();
-                            else
-                                WindowsInput.Simulate.Events().Hold(button).Invoke();
-                            mouse_toggle_btn[(int)button] = !release;
-                        }
-                    } else {
-                        if (up) {
-                            WindowsInput.Simulate.Events().Release(button).Invoke();
-                        } else {
-                            WindowsInput.Simulate.Events().Hold(button).Invoke();
-                        }
-                    }
-                }
-            }
         }
 
         // For Joystick->Joystick inputs
@@ -695,17 +656,21 @@ namespace BetterJoyForCemu {
         bool ChangeOrientationDoubleClick = Boolean.Parse(ConfigurationManager.AppSettings["ChangeOrientationDoubleClick"]);
         long lastDoubleClick = -1;
 
-        string extraGyroFeature = ConfigurationManager.AppSettings["GyroToJoyOrMouse"];
         bool UseFilteredIMU = Boolean.Parse(ConfigurationManager.AppSettings["UseFilteredIMU"]);
         int GyroMouseSensitivityX = Int32.Parse(ConfigurationManager.AppSettings["GyroMouseSensitivityX"]);
         int GyroMouseSensitivityY = Int32.Parse(ConfigurationManager.AppSettings["GyroMouseSensitivityY"]);
         float GyroStickSensitivityX = float.Parse(ConfigurationManager.AppSettings["GyroStickSensitivityX"]);
         float GyroStickSensitivityY = float.Parse(ConfigurationManager.AppSettings["GyroStickSensitivityY"]);
+        bool GyroStickInvertY = Boolean.Parse(ConfigurationManager.AppSettings["GyroStickInvertY"]);
         float GyroStickReduction = float.Parse(ConfigurationManager.AppSettings["GyroStickReduction"]);
         bool GyroHoldToggle = Boolean.Parse(ConfigurationManager.AppSettings["GyroHoldToggle"]);
         bool GyroAnalogSliders = Boolean.Parse(ConfigurationManager.AppSettings["GyroAnalogSliders"]);
         int GyroAnalogSensitivity = Int32.Parse(ConfigurationManager.AppSettings["GyroAnalogSensitivity"]);
         byte[] sliderVal = new byte[] { 0, 0 };
+
+        private static float CalculateGyroStickY(float pitchDelta, float sensitivity, bool invertY) {
+            return (invertY ? -1.0f : 1.0f) * sensitivity * pitchDelta;
+        }
 
         private void DoThingsWithButtons() {
             int powerOffButton = (int)((isPro || !isLeft || other != null) ? Button.HOME : Button.CAPTURE);
@@ -743,37 +708,41 @@ namespace BetterJoyForCemu {
                 }
             }
 
-            DetectShake();
+            // A paired left Joy-Con owns Capture; its paired right Joy-Con owns Home.
+            // This follows the physical button layout and avoids duplicate emission.
+            bool ownsCaptureShortcut = isPro || other == null || isLeft;
+            bool ownsHomeShortcut = isPro || other == null || !isLeft;
+            string captureMapping = Config.Value("capture");
+            string homeMapping = Config.Value("home");
+            bool captureCustomActive = SteamShortcutRouter.IsControllerRemap(captureMapping);
+            bool homeCustomActive = SteamShortcutRouter.IsControllerRemap(homeMapping);
+            bool captureShortcutActive = RuntimeOptions.SteamShortcutsEnabled && !captureCustomActive;
+            bool homeShortcutActive = RuntimeOptions.SteamShortcutsEnabled && !homeCustomActive;
+            try {
+                SteamShortcutAction shortcut = steamShortcutRouter.Process(
+                    buttons[(int)Button.CAPTURE],
+                    buttons[(int)Button.HOME],
+                    RuntimeOptions.SteamShortcutsEnabled,
+                    ownsCaptureShortcut && captureShortcutActive,
+                    ownsHomeShortcut && homeShortcutActive);
+                if ((shortcut & SteamShortcutAction.Screenshot) != 0)
+                    form.AppendTextBox("Steam shortcut: F12 screenshot sent.\r\n");
+                if ((shortcut & SteamShortcutAction.Overlay) != 0)
+                    form.AppendTextBox("Steam shortcut: Shift+Tab overlay sent.\r\n");
+            } catch (Exception e) {
+                LastOutputError = "Steam shortcut failed: " + e.Message;
+                form.AppendTextBox(LastOutputError + "\r\n");
+            }
 
-            if (buttons_down[(int)Button.CAPTURE])
-                Simulate(Config.Value("capture"));
-            if (buttons_down[(int)Button.HOME])
-                Simulate(Config.Value("home"));
-            SimulateContinous((int)Button.CAPTURE, Config.Value("capture"));
-            SimulateContinous((int)Button.HOME, Config.Value("home"));
+            if (ownsCaptureShortcut)
+                SimulateContinous((int)Button.CAPTURE, captureMapping);
+            if (ownsHomeShortcut)
+                SimulateContinous((int)Button.HOME, homeMapping);
 
             if (isLeft) {
-                if (buttons_down[(int)Button.SL])
-                    Simulate(Config.Value("sl_l"), false, false);
-                if (buttons_up[(int)Button.SL])
-                    Simulate(Config.Value("sl_l"), false, true);
-                if (buttons_down[(int)Button.SR])
-                    Simulate(Config.Value("sr_l"), false, false);
-                if (buttons_up[(int)Button.SR])
-                    Simulate(Config.Value("sr_l"), false, true);
-
                 SimulateContinous((int)Button.SL, Config.Value("sl_l"));
                 SimulateContinous((int)Button.SR, Config.Value("sr_l"));
             } else {
-                if (buttons_down[(int)Button.SL])
-                    Simulate(Config.Value("sl_r"), false, false);
-                if (buttons_up[(int)Button.SL])
-                    Simulate(Config.Value("sl_r"), false, true);
-                if (buttons_down[(int)Button.SR])
-                    Simulate(Config.Value("sr_r"), false, false);
-                if (buttons_up[(int)Button.SR])
-                    Simulate(Config.Value("sr_r"), false, true);
-
                 SimulateContinous((int)Button.SL, Config.Value("sl_r"));
                 SimulateContinous((int)Button.SR, Config.Value("sr_r"));
             }
@@ -781,6 +750,7 @@ namespace BetterJoyForCemu {
             // Filtered IMU data
             this.cur_rotation = AHRS.GetEulerAngles();
             float dt = 0.015f; // 15ms
+            string extraGyroFeature = RuntimeOptions.GyroMode;
 
             if (GyroAnalogSliders && (other != null || isPro)) {
                 Button leftT = isLeft ? Button.SHOULDER_2 : Button.SHOULDER2_2;
@@ -823,17 +793,17 @@ namespace BetterJoyForCemu {
                 }
             }
 
-            if (extraGyroFeature.Substring(0, 3) == "joy") {
+            if (extraGyroFeature.StartsWith("joy", StringComparison.Ordinal)) {
                 if (Config.Value("active_gyro") == "0" || active_gyro) {
                     float[] control_stick = (extraGyroFeature == "joy_left") ? stick : stick2;
 
                     float dx, dy;
                     if (UseFilteredIMU) {
                         dx = (GyroStickSensitivityX * (cur_rotation[1] - cur_rotation[4])); // yaw
-                        dy = -(GyroStickSensitivityY * (cur_rotation[0] - cur_rotation[3])); // pitch
+                        dy = CalculateGyroStickY(cur_rotation[0] - cur_rotation[3], GyroStickSensitivityY, GyroStickInvertY); // pitch
                     } else {
                         dx = (GyroStickSensitivityX * (gyr_g.Z * dt)); // yaw
-                        dy = -(GyroStickSensitivityY * (gyr_g.Y * dt)); // pitch
+                        dy = CalculateGyroStickY(gyr_g.Y * dt, GyroStickSensitivityY, GyroStickInvertY); // pitch
                     }
 
                     control_stick[0] = Math.Max(-1.0f, Math.Min(1.0f, control_stick[0] / GyroStickReduction + dx));
@@ -867,8 +837,8 @@ namespace BetterJoyForCemu {
 
         private Thread PollThreadObj;
         private void Poll() {
-            stop_polling = false;
             int attempts = 0;
+            Stopwatch lastInput = Stopwatch.StartNew();
             while (!stop_polling & state > state_.NO_JOYCONS) {
                 if (rumble_obj.queue.Count > 0) {
                     SendRumble(rumble_obj.GetData());
@@ -878,7 +848,11 @@ namespace BetterJoyForCemu {
                 if (a > 0 && state > state_.DROPPED) {
                     state = state_.IMU_DATA_OK;
                     attempts = 0;
-                } else if (attempts > 240) {
+                    lastInput.Restart();
+                } else if (attempts > 240 || lastInput.ElapsedMilliseconds > 1500) {
+                    // Timeouts are also disconnects: never keep a last pressed stick indefinitely.
+                    if (out_xbox != null) out_xbox.UpdateInput(new OutputControllerXbox360InputState());
+                    if (out_ds4 != null) out_ds4.UpdateInput(new OutputControllerDualShock4InputState());
                     state = state_.DROPPED;
                     form.AppendTextBox("Dropped.\r\n");
 
@@ -1109,7 +1083,8 @@ namespace BetterJoyForCemu {
         }
 
         public void Begin() {
-            if (PollThreadObj == null) {
+            if (PollThreadObj == null || !PollThreadObj.IsAlive) {
+                stop_polling = false;
                 PollThreadObj = new Thread(new ThreadStart(Poll));
                 PollThreadObj.IsBackground = true;
                 PollThreadObj.Start();
@@ -1122,6 +1097,8 @@ namespace BetterJoyForCemu {
 
         // Should really be called calculating stick data
         private float[] CenterSticks(UInt16[] vals, ushort[] cal, ushort dz, float scaling_factor) {
+            // Invalid calibration cannot produce a meaningful axis; keep it neutral.
+            if (cal.Any(value => value == 0 || value > 4095)) return new float[] { 0, 0 };
             ushort[] t = cal;
 
             float[] s = { 0, 0 };
@@ -1180,12 +1157,17 @@ namespace BetterJoyForCemu {
             if (print) { PrintArray(buf_, DebugType.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}"); };
             HIDapi.hid_write(handle, buf_, new UIntPtr(len + 11));
             int tries = 0;
+            int received;
             do {
-                int res = HIDapi.hid_read_timeout(handle, response, new UIntPtr(report_len), 100);
+                Array.Clear(response, 0, response.Length);
+                int res = received = HIDapi.hid_read_timeout(handle, response, new UIntPtr(report_len), 100);
                 if (res < 1) DebugPrint("No response.", DebugType.COMMS);
                 else if (print) { PrintArray(response, DebugType.COMMS, report_len - 1, 1, "Response ID 0x" + string.Format("{0:X2}", response[0]) + ". Data: 0x{0:S}"); }
                 tries++;
-            } while (tries < 10 && response[0] != 0x21 && response[14] != sc);
+            } while (tries < 10 && (received < 15 || response[0] != 0x21 || response[14] != sc));
+
+            // Never pass a short response to SPI calibration as zero-filled data.
+            if (received < response.Length) Array.Resize(ref response, Math.Max(0, received));
 
             return response;
         }
@@ -1314,15 +1296,17 @@ namespace BetterJoyForCemu {
             byte[] read_buf = new byte[len];
             byte[] buf_ = new byte[len + 20];
 
-            for (int i = 0; i < 100; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 buf_ = Subcommand(0x10, buf, 5, false);
-                if (buf_[15] == addr2 && buf_[16] == addr1) {
-                    break;
+                if (buf_.Length >= 20 + len && buf_[0] == 0x21 && (buf_[13] & 0x80) != 0 &&
+                    buf_[14] == 0x10 && buf_[15] == addr2 && buf_[16] == addr1 &&
+                    buf_[17] == 0 && buf_[18] == 0 && buf_[19] == len) {
+                    Array.Copy(buf_, 20, read_buf, 0, len);
+                    if (print) PrintArray(read_buf, DebugType.COMMS, len);
+                    return read_buf;
                 }
             }
-            Array.Copy(buf_, 20, read_buf, 0, len);
-            if (print) PrintArray(read_buf, DebugType.COMMS, len);
-            return read_buf;
+            throw new System.IO.IOException("Calibration reply missing or invalid; reconnect the controller.");
         }
 
         private void PrintArray<T>(T[] arr, DebugType d = DebugType.NONE, uint len = 0, uint start = 0, string format = "{0:S}") {
@@ -1525,7 +1509,9 @@ namespace BetterJoyForCemu {
             }
 
             // overwrite guide button if it's custom-mapped
-            if (Config.Value("home") != "0")
+            string homeMapping = Config.Value("home");
+            bool homeCustomActive = SteamShortcutRouter.IsControllerRemap(homeMapping);
+            if (RuntimeOptions.SteamShortcutsEnabled || homeCustomActive)
                 output.guide = false;
 
             if (!(isSnes || is64)) {

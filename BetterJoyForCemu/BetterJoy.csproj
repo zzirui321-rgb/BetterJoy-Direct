@@ -137,6 +137,7 @@
     <Compile Include="RuntimeOptions.cs" />
     <Compile Include="SteamShortcutRouter.cs" />
     <Compile Include="UiTextCatalog.cs" />
+    <Compile Include="ViGEmBusInstaller.cs" />
     <Compile Include="ConnectionDiagnostics.cs" />
     <Compile Include="MainForm.Modern.cs" />
     <Compile Include="Controller\OutputControllerDualShock4.cs" />

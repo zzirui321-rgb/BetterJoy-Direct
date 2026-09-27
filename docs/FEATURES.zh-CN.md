@@ -84,6 +84,15 @@ Valve 官方资料：[Steam Input 支持的设备](https://partner.steamgames.co
 - Steam 快捷键只是可选便利功能，不参与 HID→XInput 转换。
 - 远程软件仍必须支持游戏手柄转发；BetterJoy 不会给任意远程协议自动增加手柄通道。
 
+## ViGEmBus 首次安装
+
+- Windows x64 发布包附带上游提供的 `Drivers/ViGEmBusSetup_x64.msi` `1.17.333.0`，其 Authenticode 签名者为 Nefarius Software Solutions e.U.。
+- 启动时若检测不到 ViGEmBus，程序会先显示中英文说明；只有用户选择“是”后才启动安装程序。
+- Windows Installer 使用正常交互界面并请求 UAC 管理员权限；BetterJoy Direct 不使用静默安装参数，也禁止安装程序自动重启 Windows。
+- 用户取消或安装失败时，主界面仍可打开并显示驱动不可用，但不会创建虚拟 Xbox/DS4 设备。
+- 安装成功后程序会立即重试连接；若 Windows 返回“需要重启”，则明确提示用户重启。
+- ViGEmBus 已停止维护；本项目仅附带现有签名安装程序，不修改、重新签名或维护其内核驱动。版本和 SHA-256 见 [`../BetterJoyForCemu/Drivers/README.txt`](../BetterJoyForCemu/Drivers/README.txt)。
+
 ## 界面与定位震动
 
 - `English / 中文` 按钮即时切换主界面、状态、指南和托盘文字，并保存 `UiLanguage`。
@@ -127,10 +136,10 @@ Valve 官方资料：[Steam Input 支持的设备](https://partner.steamgames.co
 ## 验证与边界
 
 - 输入自动回归：343 项，覆盖 HID 报文边界、Steam 快捷键、陀螺仪方向，并确认旧键鼠发射入口已经删除。
-- UI/功能回归：32 组双语文案，以及语言切换与保存、Steam/陀螺仪快捷设置、旧映射入口移除、窗口缩放和托盘恢复顺序。
+- UI/功能回归：38 组双语文案，以及驱动安装引导、语言切换与保存、Steam/陀螺仪快捷设置、旧映射入口移除、窗口缩放和托盘恢复顺序。
 - 虚拟 Xbox 输出：连续 3 轮创建、移动、归零、断开。
 - 实体蓝牙记录：704 个 XInput 样本、1 次物理断开与成功重连；最终四轴归零，无输出错误。
 - 已验证 Switch Pro 蓝牙；USB、其他第三方手柄、具体游戏/反作弊和具体远程软件仍需在对应环境验证。
-- ViGEmBus 上游已经停止维护；本项目复用已安装驱动，不替换、安装或签名新的内核驱动。
+- 驱动缺失流程已通过静态路径、随包文件、签名和哈希验证；未在无驱动机器上实际执行安装或 UAC 流程。
 
 详细历史见 [`../CHANGELOG.md`](../CHANGELOG.md)，架构取舍见 [`direct-mode-decision.md`](direct-mode-decision.md)。

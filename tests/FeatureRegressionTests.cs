@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
 using BetterJoyForCemu;
@@ -36,6 +37,18 @@ class FeatureRegressionTests {
             Fail("Language normalization is inconsistent");
         if (chinese["LanguageButton"] == english["LanguageButton"])
             Fail("Language button does not expose the target language");
+
+        Type installerType = typeof(UiTextCatalog).Assembly.GetType("BetterJoyForCemu.ViGEmBusInstaller");
+        if (installerType == null)
+            Fail("ViGEmBus installer helper was not included in the application");
+        MethodInfo getInstallerPath = installerType.GetMethod("GetInstallerPath", BindingFlags.Static | BindingFlags.NonPublic);
+        if (getInstallerPath == null)
+            Fail("ViGEmBus installer path resolver was not found");
+        string fakeBase = Path.Combine(Path.GetTempPath(), "BetterJoy-Direct-driver-test");
+        string resolvedInstallerPath = (string)getInstallerPath.Invoke(null, new object[] { fakeBase });
+        string expectedInstallerPath = Path.Combine(fakeBase, "Drivers", "ViGEmBusSetup_x64.msi");
+        if (!String.Equals(resolvedInstallerPath, expectedInstallerPath, StringComparison.OrdinalIgnoreCase))
+            Fail("ViGEmBus installer path resolved incorrectly: " + resolvedInstallerPath);
 
         MainForm.PreviewOnly = true;
         MainForm.PreviewLanguage = "zh-CN";
@@ -118,6 +131,7 @@ class FeatureRegressionTests {
 
         Console.WriteLine("PASS: gentle locate profile " + profile.Strength + " for " + profile.DurationMs + "ms");
         Console.WriteLine("PASS: " + UiTextCatalog.RequiredKeys.Length + " bilingual UI strings and two-way toggle");
+        Console.WriteLine("PASS: bundled ViGEmBus installer path resolves under Drivers");
         Console.WriteLine("PASS: live language button refresh and preference save");
         Console.WriteLine("PASS: desktop mapping UI removed; Steam shortcut and gyro controls remain live");
         Console.WriteLine("PASS: resize range and paint-ready tray restore");

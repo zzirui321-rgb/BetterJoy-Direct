@@ -9,7 +9,7 @@ BetterJoy 的专注型 Windows x64 分支：更安全的重连、运行时陀螺
 <p>
   <img alt="Windows 10 和 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="375 项回归检查" src="https://img.shields.io/badge/regression%20checks-375%20passing-2EA44F">
+  <img alt="381 项回归检查" src="https://img.shields.io/badge/regression%20checks-381%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
@@ -47,22 +47,24 @@ BetterJoy 的专注型 Windows x64 分支：更安全的重连、运行时陀螺
 
 ## 快速开始
 
-### 1. 准备运行环境
+### 1. 准备虚拟手柄驱动
 
 - Windows 10 或 Windows 11 x64
-- 已安装 [ViGEmBus](https://github.com/nefarius/ViGEmBus) 驱动
 - 通过 USB 或蓝牙连接的 Switch Pro Controller 或受支持的 Joy-Con
 
-ViGEmBus 上游已经停止维护。BetterJoy Direct 只复用已安装的驱动；便携包不会安装或替换其内核组件。
+完整的 x64 发布包内含上游提供的 ViGEmBus `1.17.333.0` x64 安装程序，其 Authenticode 签名者为 Nefarius Software Solutions e.U.。首次启动时，BetterJoy Direct 若检测不到驱动，会先询问是否启动安装程序，随后由 Windows 显示正常的 UAC 管理员授权。驱动绝不会静默安装；选择**否**仍可打开界面，但不会产生虚拟 Xbox/XInput 输出。
+
+ViGEmBus 是系统驱动，无法真正“便携化”，因此仍需完成一次管理员授权安装。其上游项目已经停止维护；BetterJoy Direct 仅为兼容性附带现有签名安装程序，不维护或重新签名该内核驱动。版本和 SHA-256 记录在 [`Drivers/README.txt`](BetterJoyForCemu/Drivers/README.txt)。
 
 ### 2. 下载并连接
 
 1. 从 [GitHub Releases](https://github.com/zzirui321-rgb/BetterJoy-Direct/releases) 下载便携 ZIP，并完整解压。
 2. 退出旧版 BetterJoy，以及可能同时打开同一物理手柄的其它映射软件。
 3. 运行 `BetterJoyForCemu.exe`。
-4. USB 可直接连接；蓝牙请长按手柄同步键，然后在 Windows 蓝牙设置中配对。
-5. 首次连接或重连后松开全部按键，等待至少 **300 毫秒**，让中立输入保护完成。
-6. 点击 **测试 Xbox 输入**，在 Windows 游戏控制器面板中检查按键与摇杆。
+4. 若出现提示，请选择**是**、通过 Windows UAC，并完成随包 ViGEmBus 安装；如有要求，请重启 BetterJoy Direct 或 Windows。
+5. USB 可直接连接；蓝牙请长按手柄同步键，然后在 Windows 蓝牙设置中配对。
+6. 首次连接或重连后松开全部按键，等待至少 **300 毫秒**，让中立输入保护完成。
+7. 点击 **测试 Xbox 输入**，在 Windows 游戏控制器面板中检查按键与摇杆。
 
 > [!TIP]
 > 普通按键和摇杆输出 XInput，因此 Windows 资源管理器不会响应它们。陀螺仪鼠标模式会直接移动光标。
@@ -96,14 +98,14 @@ Switch Pro / Joy-Con
         └─ 可选 Motion Server → DSU/Cemuhook 数据
 ```
 
-便携包不会修改驱动、Steam 设置、HidHide 或 Windows 设备隐藏规则。远程控制软件必须自身支持游戏手柄转发；BetterJoy Direct 无法为任意远程协议自动增加手柄通道。
+BetterJoy Direct 只有在用户明确同意并通过 Windows UAC 后才会启动随包驱动安装程序，绝不会静默安装。它不会修改 Steam 设置、HidHide 或 Windows 设备隐藏规则。远程控制软件必须自身支持游戏手柄转发；BetterJoy Direct 无法为任意远程协议自动增加手柄通道。
 
 ## 验证概览
 
 | 范围 | 结果 |
 |---|---|
 | 输入回归 | **343 项通过**——报文边界、全部 256 个 report ID、时间戳、重连释放门、校准、死区、Steam 快捷键按下沿、陀螺仪方向和 Guide 抑制 |
-| 界面与行为 | **32 项通过**——双语文案、运行时设置、窗口缩放和托盘恢复 |
+| 界面与行为 | **38 项通过**——双语文案、驱动安装引导、运行时设置、窗口缩放和托盘恢复 |
 | 虚拟 Xbox 生命周期 | **连续 3 轮通过**——创建、移动、归零与断开 |
 | 实体硬件 | **704 个 XInput 样本**——Switch Pro 蓝牙连接，包括物理断开与自动重连 |
 

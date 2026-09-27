@@ -269,6 +269,8 @@ namespace BetterJoyForCemu {
         }
 
         void ReenableViGEm(Joycon v) {
+            if (Program.emClient == null) return;
+
             if (showAsXInput && v.out_xbox == null) {
                 v.out_xbox = new Controller.OutputControllerXbox360();
 

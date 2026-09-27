@@ -9,7 +9,7 @@ A focused Windows x64 fork of [BetterJoy](https://github.com/Davidobot/BetterJoy
 <p>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="375 regression checks" src="https://img.shields.io/badge/regression%20checks-375%20passing-2EA44F">
+  <img alt="381 regression checks" src="https://img.shields.io/badge/regression%20checks-381%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
@@ -47,22 +47,24 @@ A focused Windows x64 fork of [BetterJoy](https://github.com/Davidobot/BetterJoy
 
 ## Quick start
 
-### 1. Install the requirement
+### 1. Prepare the virtual-controller driver
 
 - Windows 10 or Windows 11 x64
-- An installed [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver
 - A Switch Pro Controller or supported Joy-Con over USB or Bluetooth
 
-ViGEmBus has been retired upstream. BetterJoy Direct reuses an installed driver; the portable package does not install or replace its kernel component.
+The complete x64 release includes the upstream-provided ViGEmBus `1.17.333.0` x64 installer, Authenticode-signed by Nefarius Software Solutions e.U. On first launch, BetterJoy Direct detects a missing driver and asks before starting the installer. Windows then displays its normal UAC prompt. The driver is never installed silently; choosing **No** leaves the interface available but disables virtual Xbox/XInput output.
+
+ViGEmBus is a system driver, so it cannot be made portable and still requires one administrator-approved installation. The upstream project has been retired; BetterJoy Direct bundles the existing signed installer for compatibility but does not maintain or re-sign it. Its version and SHA-256 are recorded in [`Drivers/README.txt`](BetterJoyForCemu/Drivers/README.txt).
 
 ### 2. Download and connect
 
 1. Download the portable ZIP from [GitHub Releases](https://github.com/zzirui321-rgb/BetterJoy-Direct/releases), then extract the complete archive.
 2. Close older BetterJoy instances and other mappers that may open the same physical controller.
 3. Run `BetterJoyForCemu.exe`.
-4. Connect over USB, or hold the controller's sync button and pair it in Windows Bluetooth settings.
-5. After connecting or reconnecting, release every button and wait at least **300 ms** for the neutral-input gate.
-6. Select **Test Xbox input** and verify the controller in the Windows game-controller panel.
+4. If prompted, choose **Yes**, approve Windows UAC, and complete the bundled ViGEmBus installer. Restart BetterJoy Direct or Windows if requested.
+5. Connect over USB, or hold the controller's sync button and pair it in Windows Bluetooth settings.
+6. After connecting or reconnecting, release every button and wait at least **300 ms** for the neutral-input gate.
+7. Select **Test Xbox input** and verify the controller in the Windows game-controller panel.
 
 > [!TIP]
 > Regular buttons and sticks produce XInput, so Windows Explorer will not react to them. Gyro mouse mode moves the pointer directly.
@@ -96,14 +98,14 @@ report validation → reconnect release gate → calibration and parsing
         └─ optional motion server → DSU/Cemuhook data
 ```
 
-The portable package does not modify drivers, Steam settings, HidHide, or Windows device-hiding rules. Remote-control software must provide its own gamepad-forwarding channel; BetterJoy Direct cannot add controller transport to an arbitrary remote protocol.
+BetterJoy Direct only launches the bundled driver installer after explicit confirmation and Windows UAC; it never installs a driver silently. It does not change Steam settings, HidHide, or Windows device-hiding rules. Remote-control software must provide its own gamepad-forwarding channel; BetterJoy Direct cannot add controller transport to an arbitrary remote protocol.
 
 ## Verification snapshot
 
 | Area | Result |
 |---|---|
 | Input regression | **343 checks passed** — report bounds, all 256 report IDs, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, and Guide suppression |
-| UI and behavior | **32 checks passed** — bilingual text, runtime settings, resizing, and tray restore |
+| UI and behavior | **38 checks passed** — bilingual text, driver onboarding, runtime settings, resizing, and tray restore |
 | Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
 | Physical hardware | **704 XInput samples** — Switch Pro over Bluetooth, including physical disconnect and automatic reconnect |
 

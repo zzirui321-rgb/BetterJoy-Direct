@@ -419,6 +419,16 @@ namespace BetterJoyForCemu {
                     emClient = new ViGEmClient(); // Manages emulated XInput
                 } catch (Nefarius.ViGEm.Client.Exceptions.VigemBusNotFoundException) {
                     form.console.AppendText("Could not start VigemBus. Make sure drivers are installed correctly.\r\n");
+                    if (ViGEmBusInstaller.PromptAndInstall(form)) {
+                        try {
+                            emClient = new ViGEmClient();
+                            form.console.AppendText("ViGEmBus installed and connected.\r\n");
+                        } catch (Nefarius.ViGEm.Client.Exceptions.VigemBusNotFoundException) {
+                            form.console.AppendText(form.GetUiText("DriverInstallRetryFailed") + "\r\n");
+                            MessageBox.Show(form, form.GetUiText("DriverInstallRetryFailed"),
+                                form.GetUiText("DriverInstallTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
                 }
             }
 

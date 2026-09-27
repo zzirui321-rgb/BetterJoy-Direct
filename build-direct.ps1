@@ -35,4 +35,12 @@ Copy-Item -LiteralPath "$src\App.config" -Destination "$out\BetterJoyForCemu.exe
 New-Item -ItemType Directory -Path "$out\x64" -Force | Out-Null
 Copy-Item -LiteralPath "$src\x64\hidapi.dll" -Destination "$out\x64"
 Copy-Item -LiteralPath "$root\LICENSE" -Destination $out
+$driverSource = Join-Path $src 'Drivers\ViGEmBusSetup_x64.msi'
+$driverHash = (Get-FileHash -LiteralPath $driverSource -Algorithm SHA256).Hash
+$expectedDriverHash = '5ABBBA8A4A07AAAEB50B4666183B2F243E0E5AD288026D2A9F3595ED237C4B28'
+if ($driverHash -ne $expectedDriverHash) { throw 'ViGEmBus installer hash mismatch' }
+$driverOut = Join-Path $out 'Drivers'
+New-Item -ItemType Directory -Path $driverOut -Force | Out-Null
+Copy-Item -LiteralPath $driverSource -Destination $driverOut
+Copy-Item -LiteralPath "$src\Drivers\README.txt" -Destination $driverOut
 Write-Output "Built $out\BetterJoyForCemu.exe"

@@ -1,60 +1,117 @@
+<div align="center">
+
 # BetterJoy Direct
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+**Switch controllers in. Stable Xbox input out.**
 
-BetterJoy Direct is a Windows x64 fork of [Davidobot/BetterJoy](https://github.com/Davidobot/BetterJoy), based on upstream commit `b6715638a3ed1084f8968e8cafebbc6fe2ed0096`.
+A focused Windows x64 fork of [BetterJoy](https://github.com/Davidobot/BetterJoy) with safer reconnects, live gyro controls, and a clean bilingual interface.
 
-It keeps BetterJoy's Nintendo Switch controller to Xbox 360/XInput pipeline while making reconnects safer, exposing gyro controls at runtime, simplifying desktop input behavior, and replacing the legacy window with a resizable bilingual interface.
+<p>
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
+  <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
+  <img alt="375 regression checks" src="https://img.shields.io/badge/regression%20checks-375%20passing-2EA44F">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
 
-![BetterJoy Direct English interface](docs/images/interface-en.png)
+<p>
+  <a href="README.md"><strong>English</strong></a>
+  ·
+  <a href="README.zh-CN.md">简体中文</a>
+  ·
+  <a href="https://github.com/zzirui321-rgb/BetterJoy-Direct/releases">Releases</a>
+  ·
+  <a href="#quick-start">Quick start</a>
+  ·
+  <a href="#documentation">Documentation</a>
+</p>
 
-## Highlights
+</div>
 
-- Converts Switch Pro Controllers and Joy-Cons connected over USB or Bluetooth into virtual Xbox 360/XInput controllers through ViGEmBus.
-- Validates HID input reports before exporting buttons or axes and waits for a neutral release baseline after connection or reconnection.
-- Clears stale Windows XInput axes when a virtual controller is created.
-- Offers live gyro modes: off, left stick, right stick, or mouse.
-- Provides optional Steam shortcuts: Capture sends `F12`; Home sends `Shift+Tab`.
-- Uses a modern Chinese/English interface with four controller cards, connection logs, Windows Bluetooth and controller-test shortcuts, and resizable/tray-safe window behavior.
-- Uses a short, strength-limited locate rumble instead of the original strong pulse.
-- Removes the misleading custom keyboard/mouse mapping toggle and its global input hooks. Standard buttons and sticks remain Xbox input.
+---
 
-## Download and requirements
+> [!NOTE]
+> BetterJoy Direct converts supported Nintendo Switch controllers into virtual Xbox 360/XInput devices. Steam is optional; the core USB/Bluetooth-to-XInput path does not depend on it.
 
-Download the current portable ZIP from [GitHub Releases](https://github.com/zzirui321-rgb/BetterJoy-Direct/releases), extract the whole archive, and run `BetterJoyForCemu.exe`.
+## Why BetterJoy Direct?
 
-Requirements:
+| | |
+|---|---|
+| **🎮 Direct XInput**<br>Use Switch Pro Controllers and Joy-Cons as virtual Xbox 360 controllers through ViGEmBus. | **🛡️ Safer reconnects**<br>Reject malformed HID reports, wait for a neutral release baseline, and clear stale output after reconnecting. |
+| **🧭 Live gyro modes**<br>Switch between off, left stick, right stick, and mouse without reconnecting the controller. | **🌐 Bilingual interface**<br>Change between English and Chinese at runtime in a resizable, tray-safe window. |
+| **⌨️ Steam shortcuts**<br>Optionally map Capture to `F12` and Home to `Shift+Tab`, with press-edge protection. | **📍 Gentle locate**<br>Find a controller with a short, strength-limited rumble that cannot stack from repeated clicks. |
+
+<p align="center">
+  <img src="docs/images/interface-en.png" alt="BetterJoy Direct English interface" width="915">
+</p>
+<p align="center"><sub>Four controller slots, connection diagnostics, runtime gyro controls, and one-click language switching.</sub></p>
+
+## Quick start
+
+### 1. Install the requirement
 
 - Windows 10 or Windows 11 x64
 - An installed [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver
-- A Switch Pro Controller or supported Joy-Con connection over USB or Bluetooth
+- A Switch Pro Controller or supported Joy-Con over USB or Bluetooth
 
-The portable package does not install or change drivers, Steam settings, HidHide, or Windows device-hiding rules. ViGEmBus has been retired upstream; this project reuses the installed driver and does not replace its kernel component.
+ViGEmBus has been retired upstream. BetterJoy Direct reuses an installed driver; the portable package does not install or replace its kernel component.
 
-## First use
+### 2. Download and connect
 
-1. Close other BetterJoy instances and controller mappers that could open the same physical device.
-2. Connect by USB, or hold the controller's sync button and pair it in Windows Bluetooth settings.
-3. After a connection or reconnection, release every button and wait at least 300 ms for the neutral-input gate.
-4. Select **Test Xbox input** to open the Windows game-controller panel, then verify sticks and buttons there or in a game.
+1. Download the portable ZIP from [GitHub Releases](https://github.com/zzirui321-rgb/BetterJoy-Direct/releases), then extract the complete archive.
+2. Close older BetterJoy instances and other mappers that may open the same physical controller.
+3. Run `BetterJoyForCemu.exe`.
+4. Connect over USB, or hold the controller's sync button and pair it in Windows Bluetooth settings.
+5. After connecting or reconnecting, release every button and wait at least **300 ms** for the neutral-input gate.
+6. Select **Test Xbox input** and verify the controller in the Windows game-controller panel.
 
-Regular buttons and sticks produce XInput. Windows Explorer does not use XInput for desktop navigation, so no desktop response is expected. Gyro mouse mode produces pointer movement directly. A game may also reject simultaneous mouse and gamepad input or switch between the two input modes.
+> [!TIP]
+> Regular buttons and sticks produce XInput, so Windows Explorer will not react to them. Gyro mouse mode moves the pointer directly.
+
+> [!IMPORTANT]
+> Avoid letting Steam Input and BetterJoy map the same physical controller at the same time. That can produce duplicate input. HidHide remains an optional user-managed setup; BetterJoy Direct does not change device-hiding rules automatically.
 
 ## Runtime controls
 
-| Control | Behavior |
-|---|---|
-| Steam shortcuts | Capture → `F12`; Home → `Shift+Tab` |
-| Gyro off | Motion data is read but not converted to game input |
-| Gyro → left stick | Adds gyro movement to the virtual left stick |
-| Gyro → right stick | Adds gyro movement to the virtual right stick; recommended for broad game compatibility |
-| Gyro → mouse | Moves the Windows pointer directly and does not require another mapping toggle |
+| Control | Output | Best for |
+|---|---|---|
+| **Steam shortcuts** | Capture → `F12`; Home → `Shift+Tab` | Steam screenshots and overlay access |
+| **Gyro off** | No converted motion output | Standard Xbox control |
+| **Gyro → left stick** | Virtual left-stick movement | Experimental movement control |
+| **Gyro → right stick** | Virtual right-stick movement | Broad game compatibility and aiming |
+| **Gyro → mouse** | Direct Windows pointer movement | Mouse-camera games and desktop use |
 
-Xbox/XInput has no standard native gyro field. Software with DSU/Cemuhook support can instead enable the optional motion server. Local Steam games may feel smoother when Steam Input handles the physical Switch controller directly; avoid letting Steam and BetterJoy map the same physical device at the same time.
+Xbox/XInput has no standard native gyro field. Applications with DSU/Cemuhook support can use the optional motion server instead. For local Steam games, Steam Input may provide smoother native gyro handling; exit BetterJoy or prevent Steam from also reading the physical controller to avoid double input.
+
+## Reliability pipeline
+
+```text
+Switch Pro / Joy-Con
+        │ USB or Bluetooth HID
+        ▼
+report validation → reconnect release gate → calibration and parsing
+        │
+        ├─ ViGEmBus → Xbox 360 / XInput → game or remote client
+        ├─ optional Steam shortcuts → F12 / Shift+Tab
+        ├─ optional gyro → left stick / right stick / mouse
+        └─ optional motion server → DSU/Cemuhook data
+```
+
+The portable package does not modify drivers, Steam settings, HidHide, or Windows device-hiding rules. Remote-control software must provide its own gamepad-forwarding channel; BetterJoy Direct cannot add controller transport to an arbitrary remote protocol.
+
+## Verification snapshot
+
+| Area | Result |
+|---|---|
+| Input regression | **343 checks passed** — report bounds, all 256 report IDs, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, and Guide suppression |
+| UI and behavior | **32 checks passed** — bilingual text, runtime settings, resizing, and tray restore |
+| Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
+| Physical hardware | **704 XInput samples** — Switch Pro over Bluetooth, including physical disconnect and automatic reconnect |
+
+The verified physical path is a Switch Pro Controller over Bluetooth. USB, other controller models, individual games, anti-cheat systems, and specific remote-control applications still need validation in their own environments.
 
 ## Build from source
 
-Building requires Windows, the .NET Framework 4.6.1 Developer Pack or a compatible newer 4.x build environment, and Python 3. Dependencies are restored into the repository rather than installed globally.
+Building requires Windows, Python 3, and the .NET Framework 4.6.1 Developer Pack or a compatible newer .NET Framework 4.x build environment. Dependencies are restored inside the repository rather than installed globally.
 
 ```powershell
 python tools/restore.py
@@ -63,43 +120,33 @@ python tools/restore.py
 .\test-features.ps1
 ```
 
-Additional virtual-controller verification is available when ViGEmBus is installed:
+With ViGEmBus installed, also run the virtual-controller lifecycle test:
 
 ```powershell
 .\test-xbox-output.ps1
 ```
 
-The portable package is generated with:
+Create the portable archive with:
 
 ```powershell
 python tools/package-direct.py
 ```
 
-Generated binaries, hardware logs, downloaded tool archives, and build caches are excluded from Git. Release ZIP files belong in GitHub Releases rather than repository history.
-
-## Verification status
-
-- 343 input regression checks cover report bounds, all 256 report IDs, duplicate timestamps and wraparound, reconnect release gating, deadzones, invalid calibration, Steam shortcut edges, gyro Y direction, Guide suppression, paired Joy-Con shortcut ownership, and removal of legacy keyboard/mouse hooks.
-- 32 bilingual UI strings and runtime language, Steam shortcut, gyro, resize, and tray-restore behaviors are covered by feature regression tests.
-- The virtual Xbox lifecycle passed three consecutive create, move, neutralize, and disconnect cycles on the development machine.
-- A physical Switch Pro Controller Bluetooth session recorded 704 XInput samples, a physical disconnect, a successful automatic reconnect, neutral final axes, and no output error.
-
-Switch Pro Bluetooth is the verified hardware path. USB, other controller models, individual games, anti-cheat systems, and specific remote-control software still require testing in their own environments.
-
-Remote-control software must provide its own gamepad-forwarding channel; BetterJoy Direct cannot add controller transport to an arbitrary remote protocol.
+Generated binaries, hardware logs, downloaded tool archives, build caches, and release ZIP files are excluded from Git.
 
 ## Documentation
 
-- [Feature and configuration reference — 中文](docs/FEATURES.zh-CN.md)
-- [Development journey — English](docs/DEVELOPMENT-JOURNEY.md)
-- [开发历程 — 中文](docs/DEVELOPMENT-JOURNEY.zh-CN.md)
-- [Architecture decision](docs/direct-mode-decision.md)
-- [Changelog](CHANGELOG.md)
+| Document | Purpose |
+|---|---|
+| [Feature and configuration reference — 中文](docs/FEATURES.zh-CN.md) | Data flow, runtime controls, advanced settings, limits, and troubleshooting |
+| [Development journey — English](docs/DEVELOPMENT-JOURNEY.md) | How the project moved from diagnosis to a tested Direct build |
+| [开发历程 — 中文](docs/DEVELOPMENT-JOURNEY.zh-CN.md) | 中文版开发过程与关键取舍 |
+| [Architecture decision](docs/direct-mode-decision.md) | Direct-mode scope, boundaries, and rejected alternatives |
+| [Changelog](CHANGELOG.md) | User-visible changes across Direct milestones |
+| [Original upstream README](docs/UPSTREAM-README.md) | Original instructions, acknowledgements, and project history |
 
 ## Upstream and license
 
-BetterJoy Direct is an independent derivative of [Davidobot/BetterJoy](https://github.com/Davidobot/BetterJoy). It is not an official BetterJoy release. Upstream authors and contributors retain credit for the original project.
+BetterJoy Direct is an independent derivative of [Davidobot/BetterJoy](https://github.com/Davidobot/BetterJoy), based on upstream commit `b6715638a3ed1084f8968e8cafebbc6fe2ed0096`. It is not an official BetterJoy release; upstream authors and contributors retain credit for the original project.
 
-The [original upstream README](docs/UPSTREAM-README.md) is preserved with its acknowledgements, usage notes, and project history.
-
-The project remains under the repository's [MIT License](LICENSE). The portable archive also carries the available license or package metadata for bundled third-party dependencies.
+The project remains under the [MIT License](LICENSE). The portable archive also carries the available license or package metadata for bundled third-party dependencies.

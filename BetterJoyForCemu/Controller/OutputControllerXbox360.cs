@@ -68,7 +68,10 @@ namespace BetterJoyForCemu.Controller {
 	}
 
 	public class OutputControllerXbox360 {
+        [System.Runtime.InteropServices.DllImport("xinput1_4.dll")]
+        private static extern uint XInputGetState(uint index, [System.Runtime.InteropServices.Out] byte[] state);
 		private IXbox360Controller xbox_controller;
+        public int UserIndex { get { return xbox_controller.UserIndex; } }
 		private OutputControllerXbox360InputState current_state;
 
 		public delegate void Xbox360FeedbackReceivedEventHandler(Xbox360FeedbackReceivedEventArgs e);
@@ -107,6 +110,23 @@ namespace BetterJoyForCemu.Controller {
 
 		public void Connect() {
 			xbox_controller.Connect();
+            // Driver attachment precedes XInput enumeration. Reports sent before
+            // the user slot is readable can be lost on a fast reconnect.
+            var ready = System.Diagnostics.Stopwatch.StartNew();
+            bool readable = false;
+            while (ready.ElapsedMilliseconds < 3000) {
+                try {
+                    readable = XInputGetState((uint)xbox_controller.UserIndex, new byte[16]) == 0;
+                    if (readable) break;
+                } catch (Nefarius.ViGEm.Client.Targets.Xbox360.Exceptions.Xbox360UserIndexNotReportedException) { }
+                System.Threading.Thread.Sleep(10);
+            }
+            if (!readable) throw new System.IO.IOException("Xbox input slot did not become ready; reconnecting.");
+            // ViGEm's native zero-report cache can suppress the first neutral report,
+            // leaving Windows with the previous device's axes after reconnect.
+            // One least-significant axis unit (well below XInput deadzones), then
+            // immediate neutral, forces both transitions through without a button press.
+            DoUpdateInput(new OutputControllerXbox360InputState { axis_left_x = 1 });
 			DoUpdateInput(new OutputControllerXbox360InputState());
 		}
 

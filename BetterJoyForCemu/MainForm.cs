@@ -1,17 +1,11 @@
-﻿using Nefarius.ViGEm.Client.Targets;
-using Nefarius.ViGEm.Client.Targets.Xbox360;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Configuration;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml.Linq;
 
 namespace BetterJoyForCemu {
     public partial class MainForm : Form {
@@ -21,6 +15,7 @@ namespace BetterJoyForCemu {
         public List<KeyValuePair<string, float[]>> caliData;
         private Timer countDown;
         private int count;
+        private bool locatePulseActive;
         public List<int> xG, yG, zG, xA, yA, zA;
         public bool shakeInputEnabled = Boolean.Parse(ConfigurationManager.AppSettings["EnableShakeInput"]);
         public float shakeSesitivity = float.Parse(ConfigurationManager.AppSettings["ShakeInputSensitivity"]);
@@ -62,26 +57,27 @@ namespace BetterJoyForCemu {
                     childControl = new TextBox() { Text = value, Size = childSize };
                 }
 
-                childControl.MouseClick += cbBox_Changed;
+                childControl.Dock = DockStyle.Fill;
                 settingsTable.Controls.Add(childControl, 1, i);
             }
+            BuildModernInterface();
         }
 
         private void HideToTray() {
             this.WindowState = FormWindowState.Minimized;
             notifyIcon.Visible = true;
-            notifyIcon.BalloonTipText = "Double click the tray icon to maximise!";
+            notifyIcon.BalloonTipText = GetUiText("TrayHint");
             notifyIcon.ShowBalloonTip(0);
             this.ShowInTaskbar = false;
             this.Hide();
         }
 
         private void ShowFromTray() {
-            this.Show();
-            this.WindowState = FormWindowState.Normal;
-            this.ShowInTaskbar = true;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.Icon = Properties.Resources.betterjoyforcemu_icon;
+            WindowState = FormWindowState.Normal;
+            ShowInTaskbar = true;
+            if (!Visible) Show();
+            BringToFront();
+            Activate();
             notifyIcon.Visible = false;
         }
 
@@ -96,6 +92,7 @@ namespace BetterJoyForCemu {
         }
 
         private void MainForm_Load(object sender, EventArgs e) {
+            if (PreviewOnly) return;
             Config.Init(caliData);
 
             Program.Start();
@@ -106,7 +103,9 @@ namespace BetterJoyForCemu {
             if (Config.IntValue("StartInTray") == 1) {
                 HideToTray();
             } else {
-                ShowFromTray();
+                WindowState = FormWindowState.Normal;
+                ShowInTaskbar = true;
+                notifyIcon.Visible = false;
             }
         }
 
@@ -137,7 +136,8 @@ namespace BetterJoyForCemu {
 
         public void AppendTextBox(string value) { // https://stackoverflow.com/questions/519233/writing-to-a-textbox-from-another-thread
             if (InvokeRequired) {
-                this.Invoke(new Action<string>(AppendTextBox), new object[] { value });
+                if (!IsDisposed && IsHandleCreated)
+                    this.BeginInvoke(new Action<string>(AppendTextBox), new object[] { value });
                 return;
             }
             console.AppendText(value);
@@ -149,15 +149,24 @@ namespace BetterJoyForCemu {
 
         public async void locBtnClickAsync(object sender, EventArgs e) {
             Button bb = sender as Button;
+            if (bb == null || locatePulseActive || !(bb.Tag is Button)) return;
 
-            if (bb.Tag.GetType() == typeof(Button)) {
-                Button button = bb.Tag as Button;
+            Button button = (Button)bb.Tag;
+            if (!(button.Tag is Joycon)) return;
 
-                if (button.Tag.GetType() == typeof(Joycon)) {
-                    Joycon v = (Joycon)button.Tag;
-                    v.SetRumble(160.0f, 320.0f, 1.0f);
-                    await Task.Delay(300);
-                    v.SetRumble(160.0f, 320.0f, 0);
+            Joycon v = (Joycon)button.Tag;
+            LocateRumbleProfile profile = LocateRumbleProfile.FromConfiguration();
+            locatePulseActive = true;
+            bb.Enabled = false;
+            try {
+                v.SetRumble(profile.LowFrequency, profile.HighFrequency, profile.Strength);
+                await Task.Delay(profile.DurationMs);
+            } finally {
+                try {
+                    v.SetRumble(profile.LowFrequency, profile.HighFrequency, 0);
+                } finally {
+                    locatePulseActive = false;
+                    if (!bb.IsDisposed) bb.Enabled = true;
                 }
             }
         }

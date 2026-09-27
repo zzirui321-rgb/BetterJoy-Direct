@@ -77,7 +77,8 @@ namespace BetterJoyForCemu {
                             b.Invoke(new MethodInvoker(delegate {
                                 b.BackColor = System.Drawing.Color.FromArgb(0x00, System.Drawing.SystemColors.Control);
                                 b.Enabled = false;
-                                b.BackgroundImage = Properties.Resources.cross;
+                                b.BackgroundImage = null;
+                                form.SetSlotDisconnected(b);
                             }));
                             break;
                         }
@@ -92,10 +93,13 @@ namespace BetterJoyForCemu {
         }
 
         void CheckForNewControllersTime(Object source, ElapsedEventArgs e) {
+            if (!form.IsHandleCreated || form.IsDisposed) return;
+            form.BeginInvoke(new Action(() => {
             CleanUp();
             if (Config.IntValue("ProgressiveScan") == 1) {
                 CheckForNewControllers();
             }
+            }));
         }
 
         private ushort TypeToProdId(byte type) {
@@ -189,6 +193,11 @@ namespace BetterJoyForCemu {
                     // -------------------- //
 
                     IntPtr handle = HIDapi.hid_open_path(enumerate.path);
+                    if (handle == IntPtr.Zero) {
+                        form.AppendTextBox("Controller is busy or unavailable; retrying on next scan.\r\n");
+                        ptr = enumerate.next;
+                        continue;
+                    }
                     try {
                         HIDapi.hid_set_nonblocking(handle, 1);
                     } catch {
@@ -228,12 +237,15 @@ namespace BetterJoyForCemu {
                                 v.Invoke(new MethodInvoker(delegate {
                                     v.Tag = j.Last(); // assign controller to button
                                     v.Enabled = true;
+                                    v.Text = "";
+                                    v.Click -= new EventHandler(form.conBtnClick);
                                     v.Click += new EventHandler(form.conBtnClick);
                                     v.BackgroundImage = temp;
                                 }));
 
                                 form.loc[ii].Invoke(new MethodInvoker(delegate {
                                     form.loc[ii].Tag = v;
+                                    form.loc[ii].Click -= new EventHandler(form.locBtnClickAsync);
                                     form.loc[ii].Click += new EventHandler(form.locBtnClickAsync);
                                 }));
 
@@ -306,14 +318,15 @@ namespace BetterJoyForCemu {
             bool on = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None).AppSettings.Settings["HomeLEDOn"].Value.ToLower() == "true";
             foreach (Joycon jc in j) { // Connect device straight away
                 if (jc.state == Joycon.state_.NOT_ATTACHED) {
+                    try {
                     if (jc.out_xbox != null)
                         jc.out_xbox.Connect();
                     if (jc.out_ds4 != null)
                         jc.out_ds4.Connect();
 
-                    try {
                         jc.Attach();
                     } catch (Exception e) {
+                        form.AppendTextBox("Controller initialization failed: " + e.Message + "\r\n");
                         jc.state = Joycon.state_.DROPPED;
                         continue;
                     }
@@ -329,22 +342,16 @@ namespace BetterJoyForCemu {
         }
 
         public void OnApplicationQuit() {
+            controllerCheck?.Stop();
             foreach (Joycon v in j) {
                 if (Boolean.Parse(ConfigurationManager.AppSettings["AutoPowerOff"]))
                     v.PowerOff();
 
                 v.Detach();
 
-                if (v.out_xbox != null) {
-                    v.out_xbox.Disconnect();
-                }
-
-                if (v.out_ds4 != null) {
-                    v.out_ds4.Disconnect();
-                }
             }
 
-            controllerCheck.Stop();
+            controllerCheck?.Dispose();
             HIDapi.hid_exit();
         }
     }
@@ -365,9 +372,6 @@ namespace BetterJoyForCemu {
         static public bool useHIDG = Boolean.Parse(ConfigurationManager.AppSettings["UseHIDG"]);
 
         public static List<SController> thirdPartyCons = new List<SController>();
-
-        private static WindowsInput.Events.Sources.IKeyboardEventSource keyboard;
-        private static WindowsInput.Events.Sources.IMouseEventSource mouse;
 
         public static void Start() {
             pid = Process.GetCurrentProcess().Id.ToString(); // get current process id for HidCerberus.Srv
@@ -410,6 +414,7 @@ namespace BetterJoyForCemu {
             }
 
             if (Boolean.Parse(ConfigurationManager.AppSettings["ShowAsXInput"]) || Boolean.Parse(ConfigurationManager.AppSettings["ShowAsDS4"])) {
+                form.console.AppendText("Connecting Xbox virtual driver...\r\n");
                 try {
                     emClient = new ViGEmClient(); // Manages emulated XInput
                 } catch (Nefarius.ViGEm.Client.Exceptions.VigemBusNotFoundException) {
@@ -427,6 +432,7 @@ namespace BetterJoyForCemu {
             }
 
             // a bit hacky
+            form.console.AppendText("Enumerating HID controllers...\r\n");
             _3rdPartyControllers partyForm = new _3rdPartyControllers();
             partyForm.CopyCustomControllers();
 
@@ -441,59 +447,7 @@ namespace BetterJoyForCemu {
 
             server.Start(IPAddress.Parse(ConfigurationManager.AppSettings["IP"]), Int32.Parse(ConfigurationManager.AppSettings["Port"]));
 
-            // Capture keyboard + mouse events for binding's sake
-            keyboard = WindowsInput.Capture.Global.KeyboardAsync();
-            keyboard.KeyEvent += Keyboard_KeyEvent;
-            mouse = WindowsInput.Capture.Global.MouseAsync();
-            mouse.MouseEvent += Mouse_MouseEvent;
-
             form.console.AppendText("All systems go\r\n");
-        }
-
-        private static void Mouse_MouseEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.MouseEvent> e) {
-            if (e.Data.ButtonDown != null) {
-                string res_val = Config.Value("reset_mouse");
-                if (res_val.StartsWith("mse_"))
-                    if ((int)e.Data.ButtonDown.Button == Int32.Parse(res_val.Substring(4)))
-                        WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
-
-                res_val = Config.Value("active_gyro");
-                if (res_val.StartsWith("mse_"))
-                    if ((int)e.Data.ButtonDown.Button == Int32.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
-                            i.active_gyro = true;
-            }
-
-            if (e.Data.ButtonUp != null) {
-                string res_val = Config.Value("active_gyro");
-                if (res_val.StartsWith("mse_"))
-                    if ((int)e.Data.ButtonUp.Button == Int32.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
-                            i.active_gyro = false;
-            }
-        }
-
-        private static void Keyboard_KeyEvent(object sender, WindowsInput.Events.Sources.EventSourceEventArgs<WindowsInput.Events.Sources.KeyboardEvent> e) {
-            if (e.Data.KeyDown != null) {
-                string res_val = Config.Value("reset_mouse");
-                if (res_val.StartsWith("key_"))
-                    if ((int)e.Data.KeyDown.Key == Int32.Parse(res_val.Substring(4)))
-                        WindowsInput.Simulate.Events().MoveTo(Screen.PrimaryScreen.Bounds.Width / 2, Screen.PrimaryScreen.Bounds.Height / 2).Invoke();
-
-                res_val = Config.Value("active_gyro");
-                if (res_val.StartsWith("key_"))
-                    if ((int)e.Data.KeyDown.Key == Int32.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
-                            i.active_gyro = true;
-            }
-
-            if (e.Data.KeyUp != null) {
-                string res_val = Config.Value("active_gyro");
-                if (res_val.StartsWith("key_"))
-                    if ((int)e.Data.KeyUp.Key == Int32.Parse(res_val.Substring(4)))
-                        foreach (var i in mgr.j)
-                            i.active_gyro = false;
-            }
         }
 
         public static void Stop() {
@@ -511,16 +465,35 @@ namespace BetterJoyForCemu {
                 } catch { }
             }
 
-            keyboard.Dispose(); mouse.Dispose();
-            server.Stop();
-            mgr.OnApplicationQuit();
+            server?.Stop();
+            mgr?.OnApplicationQuit();
         }
 
         private static string appGuid = "1bf709e9-c133-41df-933a-c9ff3f664c7b"; // randomly-generated
+        [STAThread]
         static void Main(string[] args) {
 
             // Setting the culturesettings so float gets parsed correctly
             CultureInfo.CurrentCulture = new CultureInfo("en-US", false);
+
+            if (args.Length >= 2 && args[0] == "--render-preview") {
+                MainForm.PreviewOnly = true;
+                MainForm.PreviewLanguage = args.Length >= 3 ? args[2] : null;
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                using (var preview = new MainForm()) {
+                    preview.ShowInTaskbar = false;
+                    preview.Opacity = 0;
+                    preview.Show();
+                    preview.CreateControl();
+                    preview.PerformLayout();
+                    using (var bitmap = new System.Drawing.Bitmap(preview.Width, preview.Height)) {
+                        preview.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height));
+                        bitmap.Save(args[1], System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                }
+                return;
+            }
 
             // Set the correct DLL for the current OS
             SetupDlls();
@@ -534,6 +507,11 @@ namespace BetterJoyForCemu {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 form = new MainForm();
+                if (args.Length >= 2 && args[0] == "--diagnose") {
+                    form.ShowInTaskbar = false;
+                    form.Opacity = 0;
+                    ConnectionDiagnostics.Run(form, args[1], args.Length > 2 ? Int32.Parse(args[2]) : 10);
+                }
                 Application.Run(form);
             }
         }
@@ -545,11 +523,5 @@ namespace BetterJoyForCemu {
             Environment.SetEnvironmentVariable("PATH", pathVariable);
         }
 
-        // Helper funtions to set the hidapi dll location acording to the system instruction set.
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool SetDefaultDllDirectories(int directoryFlags);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern void AddDllDirectory(string lpPathName);
     }
 }

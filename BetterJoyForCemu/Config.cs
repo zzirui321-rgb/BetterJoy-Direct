@@ -17,8 +17,6 @@ namespace BetterJoyForCemu {
 			switch (s) {
 				case "ProgressiveScan":
 					return "1";
-				case "capture":
-					return "key_" + ((int)WindowsInput.Events.KeyCode.PrintScreen);
 				case "reset_mouse":
 					return "joy_" + ((int)Joycon.Button.STICK);
 			}

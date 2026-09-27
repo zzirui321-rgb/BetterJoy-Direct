@@ -265,3 +265,8 @@ __pycache__/
 /title.pdn
 /Drivers
 /! Install the drivers in the Drivers folder
+
+# BetterJoy Direct local builds, diagnostics, and downloaded tool archives
+/outputs/
+/work-build/
+/tools/*.zip

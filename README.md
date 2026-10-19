@@ -9,7 +9,7 @@ A focused Windows x64 fork of [BetterJoy](https://github.com/Davidobot/BetterJoy
 <p>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="381 regression checks" src="https://img.shields.io/badge/regression%20checks-381%20passing-2EA44F">
+  <img alt="401 regression checks" src="https://img.shields.io/badge/regression%20checks-401%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 

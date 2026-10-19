@@ -9,7 +9,7 @@ BetterJoy 的专注型 Windows x64 分支：更安全的重连、运行时陀螺
 <p>
   <img alt="Windows 10 和 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="381 项回归检查" src="https://img.shields.io/badge/regression%20checks-381%20passing-2EA44F">
+  <img alt="401 项回归检查" src="https://img.shields.io/badge/regression%20checks-401%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 

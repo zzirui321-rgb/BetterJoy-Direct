@@ -21,9 +21,10 @@ namespace BetterJoyForCemu {
             haveTimestamp = true;
             lastTimestamp = report[1];
             if (firstReport < 0) firstReport = nowMilliseconds;
-            // A wake-up button must be released before it can trigger an action.
+            // Bits 6-7 of the shared byte are transport/status flags. USB Pro
+            // reports set bit 7 while neutral, so only the actual button bits count.
             if (!armed && nowMilliseconds - firstReport >= 300 &&
-                report[3] == 0 && report[4] == 0 && report[5] == 0) armed = true;
+                report[3] == 0 && (report[4] & 0x3F) == 0 && report[5] == 0) armed = true;
             return true;
         }
     }

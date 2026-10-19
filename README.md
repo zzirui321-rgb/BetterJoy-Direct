@@ -104,12 +104,12 @@ BetterJoy Direct only launches the bundled driver installer after explicit confi
 
 | Area | Result |
 |---|---|
-| Input regression | **343 checks passed** — report bounds, all 256 report IDs, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, and Guide suppression |
+| Input regression | **363 checks passed** — report bounds, all 256 report IDs, USB transport and handshake responses, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, and Guide suppression |
 | UI and behavior | **38 checks passed** — bilingual text, driver onboarding, runtime settings, resizing, and tray restore |
 | Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
-| Physical hardware | **704 XInput samples** — Switch Pro over Bluetooth, including physical disconnect and automatic reconnect |
+| Physical hardware | **Bluetooth:** 704 XInput samples with disconnect/reconnect; **USB:** stable `IMU_DATA_OK`, 2,346 packets in 10 seconds, neutral gate ready, and virtual XInput slot 0 |
 
-The verified physical path is a Switch Pro Controller over Bluetooth. USB, other controller models, individual games, anti-cheat systems, and specific remote-control applications still need validation in their own environments.
+Verified physical paths now include Switch Pro Bluetooth disconnect/reconnect and USB enumeration, session reuse, packet flow, neutral readiness, and virtual-slot creation. USB button/axis actuation, other controller models, individual games, anti-cheat systems, and specific remote-control applications still need validation in their own environments.
 
 ## Build from source
 

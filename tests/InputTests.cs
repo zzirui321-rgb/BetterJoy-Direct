@@ -24,6 +24,28 @@ class InputTests {
         var report = new byte[49]; report[0] = 0x30; report[1] = timestamp; return report;
     }
     static void Main() {
+        Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", UsbConnectionHelper.LegacyUsbSerial, true), "legacy USB serial");
+        Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", null, true), "Nintendo USB without serial");
+        Check(!UsbConnectionHelper.IsUsbTransport(@"\\?\BTHENUM#{00001124}", null, true), "Bluetooth path without serial");
+        Check(!UsbConnectionHelper.IsUsbTransport(@"\\?\BTHENUM#{00001124}", UsbConnectionHelper.LegacyUsbSerial, true), "Bluetooth path overrides legacy USB serial");
+        Check(!UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", "A1B2C3D4E5F6", true), "Bluetooth MAC serial");
+        Check(!UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_20d6&pid_a711", null, false), "unknown serialless device stays excluded");
+        Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", "USB-PRO-01", true), "Nintendo USB with non-MAC serial");
+
+        Check(UsbConnectionHelper.IsSuccessfulWrite(2), "payload-length USB write succeeds");
+        Check(UsbConnectionHelper.IsSuccessfulWrite(64), "full-report USB write succeeds");
+        Check(!UsbConnectionHelper.IsSuccessfulWrite(0), "zero-length USB write fails");
+        Check(!UsbConnectionHelper.IsSuccessfulWrite(-1), "negative USB write fails");
+        Check(!UsbConnectionHelper.IsEstablishedStream(2), "two input reports do not prove an established stream");
+        Check(UsbConnectionHelper.IsEstablishedStream(3), "three input reports prove an established stream");
+
+        var usbResponse = new byte[] { 0x81, 0x01, 0x00 };
+        Check(UsbConnectionHelper.IsExpectedResponse(usbResponse, usbResponse.Length, 0x01), "matching USB response");
+        Check(!UsbConnectionHelper.IsExpectedResponse(new byte[] { 0x30, 0x01 }, 2, 0x01), "input report is not a USB response");
+        Check(!UsbConnectionHelper.IsExpectedResponse(new byte[] { 0x81, 0x02 }, 2, 0x01), "wrong USB command response");
+        Check(!UsbConnectionHelper.IsExpectedResponse(usbResponse, 1, 0x01), "short USB response");
+        Check(!UsbConnectionHelper.IsExpectedResponse(usbResponse, 4, 0x01), "USB response length exceeds buffer");
+
         Check(!InputReportGuard.IsInputReport(null, 49, true), "null report");
         for (int length = 0; length < 49; length++)
             Check(!InputReportGuard.IsInputReport(Report(), length, true), "short report " + length);
@@ -45,6 +67,11 @@ class InputTests {
         Check(guard.Accept(Report(1), 49, true, 0) && !guard.IsArmed, "first neutral frame");
         Check(guard.Accept(Report(2), 49, true, 299) && !guard.IsArmed, "settle before threshold");
         Check(guard.Accept(Report(3), 49, true, 300) && guard.IsArmed, "settle complete");
+        guard = new InputReportGuard();
+        var wiredNeutral = Report(4); wiredNeutral[4] = 0x80;
+        Check(guard.Accept(wiredNeutral, 49, true, 0) && !guard.IsArmed, "wired status flag starts settle window");
+        wiredNeutral[1]++;
+        Check(guard.Accept(wiredNeutral, 49, true, 300) && guard.IsArmed, "wired status flag does not block neutral gate");
         Check(Config.GetDefaultValue("capture") == "0", "legacy Capture mapping defaults to none");
         Check(RuntimeOptions.SteamShortcutsEnabled, "Steam shortcuts default on");
         Check(typeof(RuntimeOptions).GetProperty("DesktopMappingsEnabled") == null, "desktop mapping runtime option was removed");

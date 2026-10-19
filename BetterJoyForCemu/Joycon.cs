@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
@@ -290,7 +290,7 @@ namespace BetterJoyForCemu {
         static float AHRS_beta = float.Parse(ConfigurationManager.AppSettings["AHRS_beta"]);
         private MadgwickAHRS AHRS = new MadgwickAHRS(0.005f, AHRS_beta); // for getting filtered Euler angles of rotation; 5ms sampling rate
 
-        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false, bool is64 = false, bool thirdParty = false) {
+        public Joycon(IntPtr handle_, bool imu, bool localize, float alpha, bool left, string path, string serialNum, int id = 0, bool isPro = false, bool isSnes = false, bool is64 = false, bool thirdParty = false, bool? usbTransport = null) {
             serial_number = serialNum;
             activeData = new float[6];
             handle = handle_;
@@ -307,7 +307,7 @@ namespace BetterJoyForCemu {
             this.isPro = isPro || isSnes || is64;
             this.isSnes = isSnes;
             this.is64 = is64;
-            isUSB = serialNum == "000000000001";
+            isUSB = usbTransport ?? serialNum == UsbConnectionHelper.LegacyUsbSerial;
             this.thirdParty = thirdParty;
 
             this.path = path;
@@ -374,6 +374,55 @@ namespace BetterJoyForCemu {
         public Vector3 GetAccel() {
             return acc_g;
         }
+        private void WriteUsbCommand(byte command) {
+            byte[] request = new byte[64];
+            request[0] = 0x80;
+            request[1] = command;
+
+            int written = HIDapi.hid_write(handle, request, new UIntPtr(2));
+            if (!UsbConnectionHelper.IsSuccessfulWrite(written))
+                throw new System.IO.IOException(String.Format("USB command 0x{0:X2} write failed ({1}): {2}", command, written, GetHidError()));
+        }
+
+        private byte[] ExchangeUsbCommand(byte command, bool acceptEstablishedStream = false, int timeoutMs = 500) {
+            WriteUsbCommand(command);
+
+            Stopwatch timeout = Stopwatch.StartNew();
+            byte[] response = new byte[64];
+            int ignoredReports = 0;
+            int validInputReports = 0;
+            while (timeout.ElapsedMilliseconds < timeoutMs) {
+                Array.Clear(response, 0, response.Length);
+                int remaining = Math.Max(1, timeoutMs - (int)timeout.ElapsedMilliseconds);
+                int received = HIDapi.hid_read_timeout(handle, response, new UIntPtr((uint)response.Length), Math.Min(100, remaining));
+                if (received < 0)
+                    throw new System.IO.IOException(String.Format("USB command 0x{0:X2} read failed: {1}", command, GetHidError()));
+                if (UsbConnectionHelper.IsExpectedResponse(response, received, command)) {
+                    if (ignoredReports > 0)
+                        DebugPrint(String.Format("USB command 0x{0:X2} ignored {1} pending input report(s).", command, ignoredReports), DebugType.COMMS);
+                    return response;
+                }
+                if (received > 0) {
+                    ignoredReports++;
+                    if (InputReportGuard.IsInputReport(response, received, true))
+                        validInputReports++;
+                }
+            }
+
+            if (acceptEstablishedStream && UsbConnectionHelper.IsEstablishedStream(validInputReports))
+                return null;
+
+            throw new TimeoutException(String.Format("USB command 0x{0:X2} timed out after {1} ms; ignored {2} unrelated HID report(s), including {3} valid input report(s).", command, timeoutMs, ignoredReports, validInputReports));
+        }
+
+        private string GetHidError() {
+            try {
+                return HIDapi.hid_error(handle) ?? "no HID error detail";
+            } catch {
+                return "no HID error detail";
+            }
+        }
+
         public int Attach() {
             state = state_.ATTACHED;
 
@@ -384,42 +433,25 @@ namespace BetterJoyForCemu {
 
             // Connect
             if (isUSB) {
-                a = Enumerable.Repeat((byte)0, 64).ToArray();
                 form.AppendTextBox("Using USB.\r\n");
 
-                a[0] = 0x80;
-                a[1] = 0x1;
-                HIDapi.hid_write(handle, a, new UIntPtr(2));
-                HIDapi.hid_read_timeout(handle, a, new UIntPtr(64), 100);
+                // A controller that was already connected can have normal 0x30 input frames
+                // queued before the 0x81 command response. Wait for the matching response
+                // instead of treating the first pending frame as a failed handshake.
+                a = ExchangeUsbCommand(0x01, true);
 
-                if (a[0] != 0x81) { // can occur when USB connection isn't closed properly
-                    form.AppendTextBox("Resetting USB connection.\r\n");
-                    Subcommand(0x06, new byte[] { 0x01 }, 1);
-                    throw new Exception("reset_usb");
+                if (a == null) {
+                    form.AppendTextBox("USB controller is already streaming; reusing the current session.\r\n");
+                } else {
+                    if (a.Length > 9 && a[3] == 0x3) {
+                        PadMacAddress = new PhysicalAddress(new byte[] { a[9], a[8], a[7], a[6], a[5], a[4] });
+                    }
+
+                    ExchangeUsbCommand(0x02); // Handshake
+                    ExchangeUsbCommand(0x03); // 3Mbit baud rate
+                    ExchangeUsbCommand(0x02); // Handshake at new baud rate
+                    WriteUsbCommand(0x04);     // Starts input streaming; no 0x81 response is required.
                 }
-
-                if (a[3] == 0x3) {
-                    PadMacAddress = new PhysicalAddress(new byte[] { a[9], a[8], a[7], a[6], a[5], a[4] });
-                }
-
-                // USB Pairing
-                a = Enumerable.Repeat((byte)0, 64).ToArray();
-                a[0] = 0x80; a[1] = 0x2; // Handshake
-                HIDapi.hid_write(handle, a, new UIntPtr(2));
-                HIDapi.hid_read_timeout(handle, a, new UIntPtr(64), 100);
-
-                a[0] = 0x80; a[1] = 0x3; // 3Mbit baud rate
-                HIDapi.hid_write(handle, a, new UIntPtr(2));
-                HIDapi.hid_read_timeout(handle, a, new UIntPtr(64), 100);
-
-                a[0] = 0x80; a[1] = 0x2; // Handshake at new baud rate
-                HIDapi.hid_write(handle, a, new UIntPtr(2));
-                HIDapi.hid_read_timeout(handle, a, new UIntPtr(64), 100);
-
-                a[0] = 0x80; a[1] = 0x4; // Prevent HID timeout
-                HIDapi.hid_write(handle, a, new UIntPtr(2)); // doesn't actually prevent timout...
-                HIDapi.hid_read_timeout(handle, a, new UIntPtr(64), 100);
-
             }
             dump_calibration_data();
             if (!(isSnes || is64)) {

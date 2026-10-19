@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
@@ -126,23 +126,20 @@ namespace BetterJoyForCemu {
                 SController thirdParty = null;
                 enumerate = (hid_device_info)Marshal.PtrToStructure(ptr, typeof(hid_device_info));
 
-                if (enumerate.serial_number == null) {
-                    ptr = enumerate.next; // can't believe it took me this long to figure out why USB connections used up so much CPU.
-                                          // it was getting stuck in an inf loop here!
-                    continue;
-                }
+                string serialNumber = enumerate.serial_number ?? String.Empty;
+                bool isNintendoController = (enumerate.product_id == product_l || enumerate.product_id == product_r ||
+                                             enumerate.product_id == product_pro || enumerate.product_id == product_snes || enumerate.product_id == product_n64) && enumerate.vendor_id == vendor_id;
+                bool validController = isNintendoController;
 
-                bool validController = (enumerate.product_id == product_l || enumerate.product_id == product_r ||
-                                        enumerate.product_id == product_pro || enumerate.product_id == product_snes || enumerate.product_id == product_n64) && enumerate.vendor_id == vendor_id;
-                // check list of custom controllers specified
+                // Check the list of custom controllers specified by VID, PID, and serial.
                 foreach (SController v in Program.thirdPartyCons) {
-                    if (enumerate.vendor_id == v.vendor_id && enumerate.product_id == v.product_id && enumerate.serial_number == v.serial_number) {
+                    if (enumerate.serial_number != null && enumerate.vendor_id == v.vendor_id && enumerate.product_id == v.product_id &&
+                        String.Equals(serialNumber, v.serial_number ?? String.Empty, StringComparison.Ordinal)) {
                         validController = true;
                         thirdParty = v;
                         break;
                     }
                 }
-
                 ushort prod_id = thirdParty == null ? enumerate.product_id : TypeToProdId(thirdParty.type);
                 if (prod_id == 0) {
                     ptr = enumerate.next; // controller was not assigned a type, but advance ptr anyway
@@ -208,7 +205,8 @@ namespace BetterJoyForCemu {
                     bool isPro = prod_id == product_pro;
                     bool isSnes = prod_id == product_snes;
                     bool is64 = prod_id == product_n64;
-                    j.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, enumerate.serial_number, j.Count, isPro, isSnes, is64,thirdParty != null));
+                    bool isUsbTransport = UsbConnectionHelper.IsUsbTransport(enumerate.path, serialNumber, isNintendoController && thirdParty == null);
+                    j.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, serialNumber, j.Count, isPro, isSnes, is64, thirdParty != null, isUsbTransport));
 
                     foundNew = true;
                     j.Last().form = form;
@@ -257,7 +255,7 @@ namespace BetterJoyForCemu {
                     byte[] mac = new byte[6];
                     try {
                         for (int n = 0; n < 6; n++)
-                            mac[n] = byte.Parse(enumerate.serial_number.Substring(n * 2, 2), System.Globalization.NumberStyles.HexNumber);
+                            mac[n] = byte.Parse(serialNumber.Substring(n * 2, 2), System.Globalization.NumberStyles.HexNumber);
                     } catch (Exception e) {
                         // could not parse mac address
                     }

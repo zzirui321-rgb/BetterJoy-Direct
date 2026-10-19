@@ -133,6 +133,7 @@
     <Compile Include="Collections\ConcurrentList.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="InputReportGuard.cs" />
+    <Compile Include="UsbConnectionHelper.cs" />
     <Compile Include="LocateRumbleProfile.cs" />
     <Compile Include="RuntimeOptions.cs" />
     <Compile Include="SteamShortcutRouter.cs" />

@@ -14,10 +14,13 @@ guide = '''BetterJoy Direct · Windows x64
 无需启动 Steam。在游戏/远程软件中选择 Xbox 360 / XInput。
 
 主界面点 English / 中文，可立即切换语言并记住选择。
-右上角显示作者和版本，GitHub 链接可一键打开仓库，“检查更新”提供正式版提醒和更新步骤。
+右上角显示作者“B站：蓝大丶”和版本，GitHub 下方提供视频链接。
+视频：https://www.bilibili.com/video/BV1XUaY6hE5w
+“检查更新”提供正式版提醒和更新步骤。
 底部可关闭“启动时检查更新”；网络失败不影响手柄，不自动替换程序或安装驱动。
-更新时退出旧版，备份 BetterJoyForCemu.exe.config 和 settings，完整解压新包到新文件夹。
-对照旧配置恢复新版偏好，按需复制 settings；勿用旧 .config 整体覆盖新版。更新桌面快捷方式。
+更新时完全退出旧版（包括托盘），将包内 BetterJoy-Direct 文件夹的内容覆盖到原程序目录即可。
+覆盖会替换 BetterJoyForCemu.exe.config，语言、布局和高级选项可能重置；独立 settings 文件会保留。
+备份配置或解压到新文件夹是可选方案；保留偏好时可先备份，再恢复对应设置，勿用旧 .config 整体覆盖新版。
 “轻震定位”使用温和短脉冲，连续点击不会叠加震动。
 布局按钮可即时切换并保存：Nintendo 按字母 A→A；Xbox 按位置 A↔B、X↔Y。
 “Steam 快捷键”默认开启：Capture=F12，Home=Shift+Tab。

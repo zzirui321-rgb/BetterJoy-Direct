@@ -10,9 +10,12 @@ using System.Windows.Forms;
 namespace BetterJoyForCemu {
     public partial class MainForm {
         private Label projectIdentity;
+        private Label projectVersion;
         private LinkLabel projectLink;
+        private LinkLabel projectVideoLink;
         private Button updateButton;
         private CheckBox checkUpdatesBox;
+        private LinkLabel updateGuideLink;
         private GitHubRelease latestRelease;
         private bool checkingUpdate;
         private bool updateCheckFailed;
@@ -20,18 +23,40 @@ namespace BetterJoyForCemu {
         private readonly CancellationTokenSource updateLifetime = new CancellationTokenSource();
 
         private Panel CreateProjectPanel() {
-            var panel = new Panel { Dock = DockStyle.Right, Width = 300 };
-            projectIdentity = new Label { AutoSize = true, Location = new Point(0, 2), Font = new Font("Microsoft YaHei UI", 9) };
-            projectLink = new LinkLabel { AutoSize = true, Text = "GitHub ↗", Location = new Point(0, 29), Tag = ProjectInfo.RepositoryUrl };
-            projectLink.LinkClicked += (s, e) => OpenProjectPage(ProjectInfo.RepositoryUrl);
-            updateButton = new Button { Width = 185, Height = 28, Location = new Point(100, 25) };
+            var panel = new Panel { Dock = DockStyle.Right, Width = 300, BackColor = Color.White };
+            panel.Paint += (sender, args) => ControlPaint.DrawBorder(args.Graphics, panel.ClientRectangle,
+                Color.FromArgb(220, 227, 236), ButtonBorderStyle.Solid);
+            projectIdentity = new Label {
+                AutoSize = true, Location = new Point(12, 8), Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
+            };
+            projectVersion = new Label {
+                AutoSize = false, Location = new Point(216, 8), Size = new Size(70, 22),
+                TextAlign = ContentAlignment.MiddleCenter, BackColor = Color.FromArgb(234, 240, 247),
+                ForeColor = Color.FromArgb(29, 58, 92), Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            projectLink = new LinkLabel {
+                AutoSize = true, Text = "GitHub ↗", Location = new Point(12, 33), Tag = ProjectInfo.RepositoryUrl,
+                Font = new Font("Microsoft YaHei UI", 9), LinkBehavior = LinkBehavior.HoverUnderline,
+                LinkColor = Color.FromArgb(29, 80, 145)
+            };
+            projectLink.LinkClicked += (sender, args) => OpenProjectPage(ProjectInfo.RepositoryUrl);
+            projectVideoLink = new LinkLabel {
+                AutoSize = true, Location = new Point(12, 54), Tag = ProjectInfo.VideoUrl,
+                Font = new Font("Microsoft YaHei UI", 9), LinkBehavior = LinkBehavior.HoverUnderline,
+                LinkColor = Color.FromArgb(29, 80, 145)
+            };
+            projectVideoLink.LinkClicked += (sender, args) => OpenProjectPage(ProjectInfo.VideoUrl);
+            updateButton = new Button { Width = 160, Height = 30, Location = new Point(127, 38) };
             StyleButton(updateButton);
+            updateButton.Font = new Font("Microsoft YaHei UI", 9);
             updateButton.Click += async (s, e) => {
                 if (latestRelease != null && latestRelease.CompareToCurrent() > 0) ShowUpdateInstructions();
                 else await CheckUpdatesAsync(true);
             };
             panel.Controls.Add(projectIdentity);
+            panel.Controls.Add(projectVersion);
             panel.Controls.Add(projectLink);
+            panel.Controls.Add(projectVideoLink);
             panel.Controls.Add(updateButton);
             return panel;
         }
@@ -42,6 +67,13 @@ namespace BetterJoyForCemu {
             checkUpdatesBox = new CheckBox { AutoSize = true, Checked = enabled };
             checkUpdatesBox.CheckedChanged += (s, e) => SaveAppSetting("CheckForUpdates", checkUpdatesBox.Checked ? "true" : "false");
             footer.Controls.Add(checkUpdatesBox);
+            updateGuideLink = new LinkLabel {
+                AutoSize = true, Margin = new Padding(12, 1, 0, 0), Font = new Font("Microsoft YaHei UI", 9),
+                LinkBehavior = LinkBehavior.HoverUnderline, LinkColor = Color.FromArgb(29, 80, 145)
+            };
+            updateGuideLink.LinkClicked += (sender, args) => MessageBox.Show(this, uiText["UpdateInstructions"],
+                uiText["UpdateGuide"], MessageBoxButtons.OK, MessageBoxIcon.Information);
+            footer.Controls.Add(updateGuideLink);
             Shown += async (s, e) => {
                 if (!PreviewOnly && !ConnectionDiagnostics.IsRunning && checkUpdatesBox.Checked)
                     await CheckUpdatesAsync(false);
@@ -55,7 +87,10 @@ namespace BetterJoyForCemu {
         }
 
         private void RefreshProjectInfo() {
-            projectIdentity.Text = String.Format(uiText["ProjectIdentity"], ProjectInfo.Author, ProjectInfo.Version);
+            projectIdentity.Text = String.Format(uiText["ProjectIdentity"], ProjectInfo.Author);
+            projectVersion.Text = "v" + ProjectInfo.Version;
+            projectVideoLink.Text = uiText["VideoLink"];
+            updateGuideLink.Text = uiText["UpdateGuide"];
             checkUpdatesBox.Text = uiText["CheckUpdatesAtStartup"];
             updateButton.Enabled = !checkingUpdate;
             updateButton.Text = checkingUpdate ? uiText["UpdateChecking"]

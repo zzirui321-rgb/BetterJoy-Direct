@@ -90,7 +90,7 @@ Xbox/XInput has no standard native gyro field. Applications with DSU/Cemuhook su
 
 ## Updates and project information
 
-The top-right area shows the author, **Bilibili: 蓝大丶**, and the current version. The GitHub repository link has a [Bilibili video](https://www.bilibili.com/video/BV1XUaY6hE5w) link beneath it. **Check for updates** reads this repository’s stable GitHub Release, highlights a newer version, and explains how to update. It does not replace running files or install drivers. The current application version is `0.7.4`.
+The top-right area shows the author, **Bilibili: 蓝大丶**, and the current version. The GitHub repository link has a [Bilibili video](https://www.bilibili.com/video/BV1XUaY6hE5w) link beneath it. **Check for updates** reads this repository’s stable GitHub Release, highlights a newer version, and explains how to update. It does not replace running files or install drivers. The current application version is `0.7.4`. The bottom **Update guide** link opens the instructions at any time, even when no newer release is available.
 
 **Check updates at startup** is enabled by default and can be turned off at the bottom of the window. Normal startup checks once, with no periodic polling; preview and diagnostic capture modes skip the check. Timeouts or GitHub rate limits leave a retry state instead of falsely reporting “up to date,” and do not interrupt controller input. Only public release information is requested: no account or token is needed, and controller data and logs are not uploaded.
 
@@ -138,7 +138,7 @@ BetterJoy Direct only launches the bundled driver installer after explicit confi
 | Area | Result |
 |---|---|
 | Input regression | **405 checks passed** — report bounds, all 256 report IDs, USB transport and handshake responses, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, Guide suppression, live two-Pro layouts, concurrent rumble, and diagnostic timing |
-| UI and behavior | **60 bilingual strings complete; behavior checks passed** — driver onboarding, runtime settings, resizing, and tray restore |
+| UI and behavior | **61 bilingual strings complete; behavior checks passed** — driver onboarding, runtime settings, resizing, and tray restore |
 | GitHub update checks | **54 checks passed**, plus a live public API query — semantic versions, preview ordering, draft rejection, bounded responses, cancellation, and timeout |
 | Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
 | Physical hardware | **Bluetooth:** 704 XInput samples with disconnect/reconnect; **USB:** stable `IMU_DATA_OK`, 2,346 packets in 10 seconds, neutral gate ready, and virtual XInput slot 0 |

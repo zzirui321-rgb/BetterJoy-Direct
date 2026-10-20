@@ -15,7 +15,7 @@ namespace BetterJoyForCemu {
             "DriverRestartRequired", "DriverInstallRetryFailed",
             "ButtonLayoutXbox", "ButtonLayoutNintendo", "ButtonLayoutCustom",
             "ButtonLayoutHintXbox", "ButtonLayoutHintNintendo", "ButtonLayoutHintCustom",
-            "ProjectIdentity", "VideoLink", "CheckUpdatesAtStartup", "CheckUpdates", "UpdateChecking", "UpdateAvailable", "UpdateRetry", "UpdateTrayHint", "UpdateCurrent", "UpdateLocalNewer", "UpdateFailed", "UpdateVersions", "UpdateInstructions", "UpdateAssetMissing", "UpdateOpenPrompt", "OpenPageFailed"
+            "ProjectIdentity", "VideoLink", "UpdateGuide", "CheckUpdatesAtStartup", "CheckUpdates", "UpdateChecking", "UpdateAvailable", "UpdateRetry", "UpdateTrayHint", "UpdateCurrent", "UpdateLocalNewer", "UpdateFailed", "UpdateVersions", "UpdateInstructions", "UpdateAssetMissing", "UpdateOpenPrompt", "OpenPageFailed"
         };
 
         private readonly IDictionary<string, string> values;
@@ -51,8 +51,9 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> Chinese() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
-                { "ProjectIdentity", "B站：{0} · v{1}" },
+                { "ProjectIdentity", "作者  B站：{0}" },
                 { "VideoLink", "B站视频 ↗" },
+                { "UpdateGuide", "更新说明" },
                 { "CheckUpdatesAtStartup", "启动时检查更新" },
                 { "CheckUpdates", "检查更新" },
                 { "UpdateChecking", "正在检查…" },
@@ -116,8 +117,9 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> English() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
-                { "ProjectIdentity", "Bilibili: {0} · v{1}" },
+                { "ProjectIdentity", "Author  Bilibili: {0}" },
                 { "VideoLink", "Bilibili video ↗" },
+                { "UpdateGuide", "Update guide" },
                 { "CheckUpdatesAtStartup", "Check updates at startup" },
                 { "CheckUpdates", "Check for updates" },
                 { "UpdateChecking", "Checking…" },

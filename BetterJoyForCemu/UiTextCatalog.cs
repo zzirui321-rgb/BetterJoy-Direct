@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace BetterJoyForCemu {
@@ -12,7 +12,10 @@ namespace BetterJoyForCemu {
             "SteamShortcutsToggle", "GyroModeLabel", "GyroOff",
             "GyroLeftStick", "GyroRightStick", "GyroMouse", "DriverInstallTitle",
             "DriverInstallPrompt", "DriverInstallerMissing", "DriverInstallFailed",
-            "DriverRestartRequired", "DriverInstallRetryFailed"
+            "DriverRestartRequired", "DriverInstallRetryFailed",
+            "ButtonLayoutXbox", "ButtonLayoutNintendo", "ButtonLayoutCustom",
+            "ButtonLayoutHintXbox", "ButtonLayoutHintNintendo", "ButtonLayoutHintCustom",
+            "ProjectIdentity", "CheckUpdatesAtStartup", "CheckUpdates", "UpdateChecking", "UpdateAvailable", "UpdateRetry", "UpdateTrayHint", "UpdateCurrent", "UpdateLocalNewer", "UpdateFailed", "UpdateVersions", "UpdateInstructions", "UpdateAssetMissing", "UpdateOpenPrompt", "OpenPageFailed"
         };
 
         private readonly IDictionary<string, string> values;
@@ -48,6 +51,21 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> Chinese() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
+                { "ProjectIdentity", "作者：{0} · v{1}" },
+                { "CheckUpdatesAtStartup", "启动时检查更新" },
+                { "CheckUpdates", "检查更新" },
+                { "UpdateChecking", "正在检查…" },
+                { "UpdateAvailable", "有更新：{0}" },
+                { "UpdateRetry", "重试检查更新" },
+                { "UpdateTrayHint", "打开主界面查看更新步骤" },
+                { "UpdateCurrent", "当前版本：{0}\nGitHub 正式版：{1}\n已是当前正式版。" },
+                { "UpdateLocalNewer", "当前版本：{0}\nGitHub 正式版：{1}\n本地版本比当前正式版更新，无需降级。" },
+                { "UpdateFailed", "暂时无法检查 GitHub 更新，可能是网络、请求限额或发布信息异常。手柄可继续使用，请稍后重试，也可点击 GitHub 查看 Releases。" },
+                { "UpdateVersions", "当前版本：{0}\n发现正式版：{1}" },
+                { "UpdateInstructions", "1. 下载 BetterJoy-Direct-win-x64.zip，并阅读发布说明。\n2. 完全退出旧版，备份旧目录中的 BetterJoyForCemu.exe.config 和 settings（若存在）。\n3. 将完整新包解压到新的文件夹。\n4. 对照旧配置在新版恢复偏好；需要时复制 settings。不要直接用旧 .config 覆盖新版，以免丢失新增选项。\n5. 运行新版，按需更新桌面快捷方式；确认正常后再自行清理旧目录。\n已有 ViGEmBus 通常无需重装，请以发布说明为准。" },
+                { "UpdateAssetMissing", "此正式版尚未提供预期的 Windows x64 便携包，请稍后到发布页面确认；不要把源码包当作可运行程序。" },
+                { "UpdateOpenPrompt", "是否打开此版本的 GitHub 发布页面？" },
+                { "OpenPageFailed", "无法自动打开浏览器，请复制以下地址：" },
                 { "WindowTitle", "BetterJoy Direct · Switch → Xbox" },
                 { "WaitingInitial", "等待连接手柄" },
                 { "DriverChecking", "正在检查 Xbox 虚拟手柄驱动…" },
@@ -76,6 +94,12 @@ namespace BetterJoyForCemu {
                 { "SettingSaveError", "无法保存设置；本次运行仍会使用当前选择。" },
                 { "SteamShortcutsToggle", "Steam 快捷键（F12 / Shift+Tab）" },
                 { "GyroModeLabel", "陀螺仪：" },
+                { "ButtonLayoutXbox", "布局：Xbox（按位置）" },
+                { "ButtonLayoutNintendo", "布局：Nintendo（按字母）" },
+                { "ButtonLayoutCustom", "布局：自定义" },
+                { "ButtonLayoutHintXbox", "A ↔ B，X ↔ Y · 点击切换" },
+                { "ButtonLayoutHintNintendo", "A → A，B → B，X → X，Y → Y" },
+                { "ButtonLayoutHintCustom", "沿用高级设置的 SwapAB / SwapXY" },
                 { "GyroOff", "关闭" },
                 { "GyroLeftStick", "映射左摇杆" },
                 { "GyroRightStick", "映射右摇杆（推荐）" },
@@ -91,6 +115,21 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> English() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
+                { "ProjectIdentity", "By {0} · v{1}" },
+                { "CheckUpdatesAtStartup", "Check updates at startup" },
+                { "CheckUpdates", "Check for updates" },
+                { "UpdateChecking", "Checking…" },
+                { "UpdateAvailable", "Update: {0}" },
+                { "UpdateRetry", "Retry update check" },
+                { "UpdateTrayHint", "Open the main window for update steps" },
+                { "UpdateCurrent", "Current version: {0}\nGitHub stable: {1}\nYou have the current stable release." },
+                { "UpdateLocalNewer", "Current version: {0}\nGitHub stable: {1}\nYour local build is newer than the stable release. No downgrade is needed." },
+                { "UpdateFailed", "GitHub could not be checked because of a network problem, request limit, or invalid release data. Controller input remains available. Retry later or use GitHub to view Releases." },
+                { "UpdateVersions", "Current version: {0}\nNew stable release: {1}" },
+                { "UpdateInstructions", "1. Download BetterJoy-Direct-win-x64.zip and read the release notes.\n2. Exit the old app and back up BetterJoyForCemu.exe.config and settings (if present) from its folder.\n3. Extract the complete new archive into a new folder.\n4. Restore preferences using the old config as a reference; copy settings if needed. Do not overwrite the new .config with the old one, as new options may be lost.\n5. Run the new app and update your desktop shortcut if needed. Remove the old folder yourself after verification.\nAn existing ViGEmBus installation usually needs no reinstall; follow the release notes." },
+                { "UpdateAssetMissing", "This release does not yet contain the expected Windows x64 portable archive. Check the release page later; source archives are not runnable builds." },
+                { "UpdateOpenPrompt", "Open this version’s GitHub release page?" },
+                { "OpenPageFailed", "The browser could not be opened. Copy this address:" },
                 { "WindowTitle", "BetterJoy Direct · Switch → Xbox" },
                 { "WaitingInitial", "Waiting for a controller" },
                 { "DriverChecking", "Checking the Xbox virtual controller driver…" },
@@ -119,6 +158,12 @@ namespace BetterJoyForCemu {
                 { "SettingSaveError", "Could not save the setting; the current choice remains active for this run." },
                 { "SteamShortcutsToggle", "Steam shortcuts (F12 / Shift+Tab)" },
                 { "GyroModeLabel", "Gyro:" },
+                { "ButtonLayoutXbox", "Layout: Xbox (position)" },
+                { "ButtonLayoutNintendo", "Layout: Nintendo (letter)" },
+                { "ButtonLayoutCustom", "Layout: Custom" },
+                { "ButtonLayoutHintXbox", "A ↔ B, X ↔ Y · click to switch" },
+                { "ButtonLayoutHintNintendo", "A → A, B → B, X → X, Y → Y" },
+                { "ButtonLayoutHintCustom", "Uses advanced SwapAB / SwapXY" },
                 { "GyroOff", "Off" },
                 { "GyroLeftStick", "Map to left stick" },
                 { "GyroRightStick", "Map to right stick (recommended)" },

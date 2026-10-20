@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using BetterJoyForCemu;
@@ -23,7 +23,81 @@ class InputTests {
     static byte[] Report(byte timestamp = 1) {
         var report = new byte[49]; report[0] = 0x30; report[1] = timestamp; return report;
     }
+    static void CheckRumbleMailbox() {
+        var rumbleType = typeof(Joycon).GetNestedType("Rumble", BindingFlags.NonPublic);
+        var rumble = Activator.CreateInstance(rumbleType, new object[] { new float[] { 80, 160, 0 } });
+        var set = rumbleType.GetMethod("set_vals");
+        var take = rumbleType.GetMethod("GetData");
+        take.Invoke(rumble, null);
+        set.Invoke(rumble, new object[] { 80f, 160f, .2f });
+        set.Invoke(rumble, new object[] { 80f, 160f, .8f });
+        set.Invoke(rumble, new object[] { 80f, 160f, 0f });
+        byte[] expectedStop = { 0, 1, 0x40, 0x40, 0, 1, 0x40, 0x40 };
+        var stop = (byte[])take.Invoke(rumble, null);
+        Check(stop != null && stop.SequenceEqual(expectedStop), "rumble burst delivers latest stop instead of stale queued vibration");
+        Check(take.Invoke(rumble, null) == null, "consumed rumble state does not keep generating HID writes");
+        set.Invoke(rumble, new object[] { 80f, 160f, 0f });
+        Check(take.Invoke(rumble, null) == null, "unchanged rumble feedback does not generate duplicate HID writes");
+        Exception concurrentError = null;
+        var start = new System.Threading.ManualResetEvent(false);
+        var producer = new System.Threading.Thread(() => {
+            start.WaitOne();
+            try {
+                for (int i = 0; i < 5000; i++) set.Invoke(rumble, new object[] { 80f, 160f, (i % 10) / 10f });
+            } catch (Exception e) { concurrentError = e; }
+        });
+        producer.Start();
+        start.Set();
+        for (int i = 0; i < 5000; i++) {
+            try { take.Invoke(rumble, null); } catch (Exception e) { concurrentError = e; break; }
+        }
+        producer.Join();
+        start.Dispose();
+        Check(concurrentError == null, "concurrent rumble feedback and polling remain safe");
+    }
+
     static void Main() {
+        try { Run(); } catch (Exception error) {
+            while (error != null) {
+                Console.Error.WriteLine(error.GetType().FullName + ": " + error.Message);
+                error = error.InnerException;
+            }
+            Environment.Exit(1);
+        }
+    }
+
+    static void CheckControllerTiming() {
+        var timing = new ControllerTiming();
+        Check(timing.Snapshot() == "hidReports=0 maxGapMs=0.000 outputCount=0 outputMeanMs=0.000 outputMaxMs=0.000 rumbleWrites=0 rumbleMaxMs=0.000", "timing snapshot starts at zero");
+        long second = System.Diagnostics.Stopwatch.Frequency;
+        timing.RecordInput(0);
+        timing.RecordInput(second / 4);
+        timing.RecordInput(second / 8);
+        timing.RecordInput(second / 2);
+        timing.RecordOutput(second / 4);
+        timing.RecordOutput(3 * second / 4);
+        timing.RecordRumble(second / 2);
+        var oldCulture = System.Threading.Thread.CurrentThread.CurrentCulture;
+        try {
+            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("fr-FR");
+            string snapshot = timing.Snapshot();
+            Check(snapshot.Contains("hidReports=4 maxGapMs=250.000"), "timing ignores backward timestamps when calculating gaps");
+            Check(snapshot.Contains("outputCount=2 outputMeanMs=500.000 outputMaxMs=750.000"), "timing converts Stopwatch ticks with invariant decimal formatting");
+            Check(snapshot.Contains("rumbleWrites=1 rumbleMaxMs=500.000"), "timing tracks rumble write duration independently");
+        } finally { System.Threading.Thread.CurrentThread.CurrentCulture = oldCulture; }
+        var concurrent = new ControllerTiming();
+        var writer = new System.Threading.Thread(() => {
+            for (int i = 0; i < 1000; i++) concurrent.RecordOutput(1);
+        });
+        writer.Start();
+        for (int i = 0; i < 1000; i++) { concurrent.RecordOutput(1); concurrent.Snapshot(); }
+        writer.Join();
+        Check(concurrent.Snapshot().Contains("outputCount=2000 "), "timing does not lose concurrent samples");
+    }
+
+    static void Run() {
+        CheckRumbleMailbox();
+        CheckControllerTiming();
         Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", UsbConnectionHelper.LegacyUsbSerial, true), "legacy USB serial");
         Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", null, true), "Nintendo USB without serial");
         Check(!UsbConnectionHelper.IsUsbTransport(@"\\?\BTHENUM#{00001124}", null, true), "Bluetooth path without serial");
@@ -115,6 +189,30 @@ class InputTests {
         mappedButtons[(int)Joycon.Button.HOME] = true;
         buttonsField.SetValue(controller, mappedButtons);
         var mapXbox = typeof(Joycon).GetMethod("MapToXbox360Input", BindingFlags.NonPublic | BindingFlags.Static);
+        var selectLayout = typeof(RuntimeOptions).GetMethod("SetButtonLayout");
+        Check(selectLayout != null, "runtime Nintendo/Xbox layout selector exists");
+        var mapDs4 = typeof(Joycon).GetMethod("MapToDualShock4Input", BindingFlags.Public | BindingFlags.Static);
+        var secondController = new Joycon(IntPtr.Zero, true, false, .05f, true, "second", "second", 1, true);
+        var faceButtons = new[] { Joycon.Button.A, Joycon.Button.B, Joycon.Button.X, Joycon.Button.Y };
+        foreach (string layout in new[] { "nintendo", "xbox" }) {
+            selectLayout.Invoke(null, new object[] { layout });
+            foreach (var pad in new[] { controller, secondController }) {
+                for (int i = 0; i < faceButtons.Length; i++) {
+                    var pressed = new bool[20];
+                    pressed[(int)faceButtons[i]] = true;
+                    buttonsField.SetValue(pad, pressed);
+                    int expected = layout == "nintendo" ? i : (i ^ 1);
+                    var xboxState = (OutputControllerXbox360InputState)mapXbox.Invoke(null, new object[] { pad });
+                    var xboxFace = new[] { xboxState.a, xboxState.b, xboxState.x, xboxState.y };
+                    Check(xboxFace.Select((v, index) => v == (index == expected)).All(v => v), layout + " maps " + faceButtons[i] + " live on Xbox output for pad " + pad.PadId);
+                    var ds4State = (OutputControllerDualShock4InputState)mapDs4.Invoke(null, new object[] { pad });
+                    var ds4Face = new[] { ds4State.cross, ds4State.circle, ds4State.square, ds4State.triangle };
+                    Check(ds4Face.Select((v, index) => v == (index == expected)).All(v => v), layout + " maps " + faceButtons[i] + " live on DS4 output for pad " + pad.PadId);
+                }
+            }
+        }
+        selectLayout.Invoke(null, new object[] { "xbox" });
+        buttonsField.SetValue(controller, mappedButtons);
         RuntimeOptions.SetSteamShortcuts(true);
         var steamHome = (OutputControllerXbox360InputState)mapXbox.Invoke(null, new object[] { controller });
         Check(!steamHome.guide, "Steam Home shortcut suppresses duplicate Xbox Guide");

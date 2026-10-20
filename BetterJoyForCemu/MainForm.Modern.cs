@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Configuration;
 using System.Diagnostics;
 using System.Drawing;
@@ -20,6 +20,8 @@ namespace BetterJoyForCemu {
         private CheckBox steamShortcutsBox;
         private Label gyroModeLabel;
         private ComboBox gyroModeBox;
+        private Button buttonLayoutButton;
+        private Label buttonLayoutHint;
         private TabPage guideTab;
         private TabPage logTab;
         private TabPage advancedTab;
@@ -58,7 +60,7 @@ namespace BetterJoyForCemu {
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
             Controls.Add(root);
@@ -76,6 +78,7 @@ namespace BetterJoyForCemu {
                 ForeColor = Color.FromArgb(89, 105, 128),
                 Location = new Point(2, 57)
             });
+            heading.Controls.Add(CreateProjectPanel());
             root.Controls.Add(heading, 0, 0);
 
             var status = new Panel {
@@ -153,19 +156,40 @@ namespace BetterJoyForCemu {
             AutoCalibrate.Visible = allowCalibration;
             root.Controls.Add(actions, 0, 3);
 
-            var quickOptions = new FlowLayoutPanel {
+            var quickOptions = new TableLayoutPanel {
                 Dock = DockStyle.Fill,
-                WrapContents = true,
+                ColumnCount = 1,
+                RowCount = 2,
                 BackColor = Color.White,
                 Padding = new Padding(11, 7, 11, 4)
             };
+            quickOptions.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            quickOptions.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            var primaryOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
+            var layoutOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = new Padding(0) };
             steamShortcutsBox = new CheckBox { AutoSize = true, Checked = RuntimeOptions.SteamShortcutsEnabled, Margin = new Padding(0, 2, 22, 0) };
             gyroModeLabel = new Label { AutoSize = true, Margin = new Padding(0, 4, 8, 0) };
             gyroModeBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 185, Margin = new Padding(0) };
-            quickOptions.Controls.Add(steamShortcutsBox);
-            quickOptions.Controls.Add(gyroModeLabel);
-            quickOptions.Controls.Add(gyroModeBox);
+            primaryOptions.Controls.Add(steamShortcutsBox);
+            primaryOptions.Controls.Add(gyroModeLabel);
+            primaryOptions.Controls.Add(gyroModeBox);
+            buttonLayoutButton = new Button { Width = 230, Height = 30, Margin = new Padding(0) };
+            StyleButton(buttonLayoutButton);
+            buttonLayoutHint = new Label { AutoSize = true, Margin = new Padding(10, 6, 0, 0) };
+            layoutOptions.Controls.Add(buttonLayoutButton);
+            layoutOptions.Controls.Add(buttonLayoutHint);
+            quickOptions.Controls.Add(primaryOptions, 0, 0);
+            quickOptions.Controls.Add(layoutOptions, 0, 1);
             root.Controls.Add(quickOptions, 0, 4);
+            buttonLayoutButton.Click += (s, e) => {
+                string layout = RuntimeOptions.ButtonLayout == RuntimeOptions.LayoutNintendo
+                    ? RuntimeOptions.LayoutXbox : RuntimeOptions.LayoutNintendo;
+                RuntimeOptions.SetButtonLayout(layout);
+                bool swapAB, swapXY;
+                RuntimeOptions.GetButtonSwaps(out swapAB, out swapXY);
+                SaveAppSettings("SwapAB", swapAB ? "true" : "false", "SwapXY", swapXY ? "true" : "false");
+                RefreshButtonLayout();
+            };
 
             steamShortcutsBox.CheckedChanged += (s, e) => {
                 if (updatingQuickOptions) return;
@@ -217,6 +241,7 @@ namespace BetterJoyForCemu {
             startInTrayBox.AutoSize = true;
             footer.Controls.Add(passiveScanBox);
             footer.Controls.Add(startInTrayBox);
+            InitializeUpdateChecks(footer);
             root.Controls.Add(footer, 0, 6);
 
             ApplyLanguage();
@@ -243,7 +268,7 @@ namespace BetterJoyForCemu {
         }
 
         private void ApplyLanguage() {
-            Text = uiText["WindowTitle"];
+            Text = uiText["WindowTitle"] + " · v" + ProjectInfo.Version;
             connectionStatus.Text = uiText["WaitingInitial"];
             driverStatus.Text = uiText["DriverChecking"];
             for (int i = 0; i < playerLabels.Length; i++) {
@@ -266,6 +291,8 @@ namespace BetterJoyForCemu {
             steamShortcutsBox.Text = uiText["SteamShortcutsToggle"];
             gyroModeLabel.Text = uiText["GyroModeLabel"];
             RefreshGyroModeItems();
+            RefreshButtonLayout();
+            RefreshProjectInfo();
             exitToolStripMenuItem.Text = uiText["Exit"];
             notifyIcon.BalloonTipText = uiText["TrayHint"];
             RefreshConnectionStatus();
@@ -276,16 +303,23 @@ namespace BetterJoyForCemu {
         }
 
         private bool SaveAppSetting(string key, string value) {
+            return SaveAppSettings(key, value);
+        }
+
+        private bool SaveAppSettings(params string[] pairs) {
             try {
                 var configFile = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-                var setting = configFile.AppSettings.Settings[key];
-                if (setting == null)
-                    configFile.AppSettings.Settings.Add(key, value);
-                else
-                    setting.Value = value;
+                for (int i = 0; i < pairs.Length; i += 2) {
+                    var setting = configFile.AppSettings.Settings[pairs[i]];
+                    if (setting == null)
+                        configFile.AppSettings.Settings.Add(pairs[i], pairs[i + 1]);
+                    else
+                        setting.Value = pairs[i + 1];
+                }
                 configFile.Save(ConfigurationSaveMode.Modified);
                 ConfigurationManager.RefreshSection("appSettings");
-                UpdateSettingsEditorValue(key, value);
+                for (int i = 0; i < pairs.Length; i += 2)
+                    UpdateSettingsEditorValue(pairs[i], pairs[i + 1]);
                 return true;
             } catch (ConfigurationErrorsException) {
                 AppendTextBox(uiText["SettingSaveError"] + "\r\n");
@@ -312,6 +346,13 @@ namespace BetterJoyForCemu {
                     return;
                 }
             }
+        }
+
+        private void RefreshButtonLayout() {
+            string suffix = RuntimeOptions.ButtonLayout == RuntimeOptions.LayoutNintendo ? "Nintendo"
+                : RuntimeOptions.ButtonLayout == RuntimeOptions.LayoutXbox ? "Xbox" : "Custom";
+            buttonLayoutButton.Text = uiText["ButtonLayout" + suffix];
+            buttonLayoutHint.Text = uiText["ButtonLayoutHint" + suffix];
         }
 
         private void RefreshGyroModeItems() {

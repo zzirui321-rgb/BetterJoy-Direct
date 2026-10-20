@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
@@ -151,20 +150,24 @@ namespace BetterJoyForCemu {
         private float filterweight;
         private const uint report_len = 49;
 
-        private struct Rumble {
-            public Queue<float[]> queue;
+        private sealed class Rumble {
+            private readonly object sync = new object();
+            private float[] pending;
+            private float[] lastTaken;
 
             public void set_vals(float low_freq, float high_freq, float amplitude) {
-                float[] rumbleQueue = new float[] { low_freq, high_freq, amplitude };
-                // Keep a queue of 15 items, discard oldest item if queue is full.
-                if (queue.Count > 15) {
-                    queue.Dequeue();
+                lock (sync) {
+                    float[] previous = pending ?? lastTaken;
+                    if (previous != null && previous[0] == low_freq &&
+                        previous[1] == high_freq && previous[2] == amplitude)
+                        return;
+                    // Rumble feedback describes the current motor state, not a sequence
+                    // to replay. A stop must replace stale queued vibration immediately.
+                    pending = new float[] { low_freq, high_freq, amplitude };
                 }
-                queue.Enqueue(rumbleQueue);
             }
             public Rumble(float[] rumble_info) {
-                queue = new Queue<float[]>();
-                queue.Enqueue(rumble_info);
+                pending = (float[])rumble_info.Clone();
             }
             private float clamp(float x, float min, float max) {
                 if (x < min) return min;
@@ -188,8 +191,14 @@ namespace BetterJoyForCemu {
             }
 
             public byte[] GetData() {
+                float[] queued_data;
+                lock (sync) {
+                    if (pending == null) return null;
+                    queued_data = pending;
+                    pending = null;
+                    lastTaken = (float[])queued_data.Clone();
+                }
                 byte[] rumble_data = new byte[8];
-                float[] queued_data = queue.Dequeue();
 
                 if (queued_data[2] == 0.0f) {
                     rumble_data[0] = 0x0;
@@ -246,6 +255,7 @@ namespace BetterJoyForCemu {
         public PhysicalAddress PadMacAddress = new PhysicalAddress(new byte[] { 01, 02, 03, 04, 05, 06 });
         public ulong Timestamp = 0;
         public int packetCounter = 0;
+        public readonly ControllerTiming Timing = new ControllerTiming();
 
         public OutputControllerXbox360 out_xbox;
         public OutputControllerDualShock4 out_ds4;
@@ -613,6 +623,7 @@ namespace BetterJoyForCemu {
                 return 0;
 
             if (ret > 0) {
+                if (ConnectionDiagnostics.IsRunning) Timing.RecordInput(Stopwatch.GetTimestamp());
                 // Process packets as soon as they come
                 for (int n = 0; n < 3; n++) {
                     ExtractIMUValues(raw_buf, n);
@@ -656,10 +667,13 @@ namespace BetterJoyForCemu {
 
                 // no reason to send XInput reports so often
                 if (out_xbox != null) {
+                    long started = ConnectionDiagnostics.IsRunning ? Stopwatch.GetTimestamp() : 0;
                     try {
                         out_xbox.UpdateInput(MapToXbox360Input(this));
                     } catch (Exception e) {
                         LastOutputError = e.Message;
+                    } finally {
+                        if (started != 0) Timing.RecordOutput(Stopwatch.GetTimestamp() - started);
                     }
                 }
 
@@ -872,9 +886,9 @@ namespace BetterJoyForCemu {
             int attempts = 0;
             Stopwatch lastInput = Stopwatch.StartNew();
             while (!stop_polling & state > state_.NO_JOYCONS) {
-                if (rumble_obj.queue.Count > 0) {
-                    SendRumble(rumble_obj.GetData());
-                }
+                byte[] rumbleData = rumble_obj.GetData();
+                if (rumbleData != null)
+                    SendRumble(rumbleData);
                 int a = ReceiveRaw();
 
                 if (a > 0 && state > state_.DROPPED) {
@@ -904,8 +918,6 @@ namespace BetterJoyForCemu {
 
         public float[] otherStick = { 0, 0 };
 
-        bool swapAB = Boolean.Parse(ConfigurationManager.AppSettings["SwapAB"]);
-        bool swapXY = Boolean.Parse(ConfigurationManager.AppSettings["SwapXY"]);
         bool realn64Range = Boolean.Parse(ConfigurationManager.AppSettings["N64Range"]);
         float stickScalingFactor = float.Parse(ConfigurationManager.AppSettings["StickScalingFactor"]);
         float stickScalingFactor2 = float.Parse(ConfigurationManager.AppSettings["StickScalingFactor2"]);
@@ -1173,7 +1185,12 @@ namespace BetterJoyForCemu {
             else ++global_count;
             Array.Copy(buf, 0, buf_, 2, 8);
             PrintArray(buf_, DebugType.RUMBLE, format: "Rumble data sent: {0:S}");
-            HIDapi.hid_write(handle, buf_, new UIntPtr(report_len));
+            long started = ConnectionDiagnostics.IsRunning ? Stopwatch.GetTimestamp() : 0;
+            try {
+                HIDapi.hid_write(handle, buf_, new UIntPtr(report_len));
+            } finally {
+                if (started != 0) Timing.RecordRumble(Stopwatch.GetTimestamp() - started);
+            }
         }
 
         private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true) {
@@ -1441,8 +1458,8 @@ namespace BetterJoyForCemu {
             var output = new OutputControllerXbox360InputState();
 
 
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
+            bool swapAB, swapXY;
+            RuntimeOptions.GetButtonSwaps(out swapAB, out swapXY);
 
             var isPro = input.isPro;
             var isLeft = input.isLeft;
@@ -1578,8 +1595,8 @@ namespace BetterJoyForCemu {
         public static OutputControllerDualShock4InputState MapToDualShock4Input(Joycon input) {
             var output = new OutputControllerDualShock4InputState();
 
-            var swapAB = input.swapAB;
-            var swapXY = input.swapXY;
+            bool swapAB, swapXY;
+            RuntimeOptions.GetButtonSwaps(out swapAB, out swapXY);
 
             var isPro = input.isPro;
             var isLeft = input.isLeft;

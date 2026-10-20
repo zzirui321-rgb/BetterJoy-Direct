@@ -9,7 +9,7 @@ A focused Windows x64 fork of [BetterJoy](https://github.com/Davidobot/BetterJoy
 <p>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="401 regression checks" src="https://img.shields.io/badge/regression%20checks-401%20passing-2EA44F">
+  <img alt="405 regression checks" src="https://img.shields.io/badge/regression%20checks-405%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
@@ -76,13 +76,43 @@ ViGEmBus is a system driver, so it cannot be made portable and still requires on
 
 | Control | Output | Best for |
 |---|---|---|
+| **Layout: Nintendo (letter)** | A→A, B→B, X→X, Y→Y | Match the letters printed on the controller |
+| **Layout: Xbox (position, default)** | A↔B, X↔Y | Preserve physical Xbox face-button positions |
 | **Steam shortcuts** | Capture → `F12`; Home → `Shift+Tab` | Steam screenshots and overlay access |
 | **Gyro off** | No converted motion output | Standard Xbox control |
 | **Gyro → left stick** | Virtual left-stick movement | Experimental movement control |
 | **Gyro → right stick** | Virtual right-stick movement | Broad game compatibility and aiming |
 | **Gyro → mouse** | Direct Windows pointer movement | Mouse-camera games and desktop use |
 
+Click the layout button to switch all connected controllers immediately and save the choice without restarting. Existing mixed `SwapAB` / `SwapXY` settings appear as **Custom** until the first click selects Nintendo layout.
+
 Xbox/XInput has no standard native gyro field. Applications with DSU/Cemuhook support can use the optional motion server instead. For local Steam games, Steam Input may provide smoother native gyro handling; exit BetterJoy or prevent Steam from also reading the physical controller to avoid double input.
+
+## Updates and project information
+
+The top-right area shows the Direct fork author, current version, and a clickable GitHub repository link. **Check for updates** reads this repository’s stable GitHub Release, highlights a newer version, and explains how to update. It does not replace running files or install drivers. The current application version is `0.7.3`.
+
+**Check updates at startup** is enabled by default and can be turned off at the bottom of the window. Normal startup checks once, with no periodic polling; preview and diagnostic capture modes skip the check. Timeouts or GitHub rate limits leave a retry state instead of falsely reporting “up to date,” and do not interrupt controller input. Only public release information is requested: no account or token is needed, and controller data and logs are not uploaded.
+
+To update:
+
+1. Open the release page from the notification, download **BetterJoy-Direct-win-x64.zip**, and read the release notes.
+2. Exit the old app, including its tray instance. Back up `BetterJoyForCemu.exe.config` and `settings` from its folder if present.
+3. Extract the complete new archive into a new folder.
+4. Use the old `.config` as a reference to restore language, layout, and other preferences in the new app. Copy `settings` if needed for its saved settings/calibration. Do not overwrite the new `.config` with the old file, as new options may be lost.
+5. Run the new app and update your desktop shortcut. Remove the old folder yourself after verification. An existing ViGEmBus installation usually needs no reinstall; follow the release notes.
+
+Users of `0.7.2` or earlier must manually install a version containing this component once before future reminders become available. Prerelease Releases are not offered as stable updates, and newer local builds are not prompted to downgrade.
+
+## Two Bluetooth Pro controllers lagging
+
+The updated rumble path keeps only the latest motor state, delivers stop commands without replaying stale feedback, and suppresses unchanged writes. Regression tests verify this code fix; improvement with two physical Bluetooth Pro controllers still needs hardware confirmation. A Bluetooth 5.3 label alone does not establish adapter compatibility.
+
+1. Compare one and two Pro controllers in the same game with the same adapter.
+2. Set `EnableRumble=false` in Advanced, save and restart, then repeat. Restore `true` afterward if desired.
+3. Exit BetterJoy and run `Capture-Diagnostics.cmd` from the test package. It starts a hidden diagnostic instance for 30 seconds; use both controllers in the game during capture, then share the resulting `diagnostic-*.log` from the same folder with the maintainer. Capture separate rumble-on and rumble-off runs.
+
+Logs identify each controller by `padId` and measure accepted HID report gaps, synchronous output submissions, and rumble-write durations. These host-side timings are not button-to-screen latency. Upstream reports describe [multi-controller lag](https://github.com/Davidobot/BetterJoy/issues/230) and [rumble-related stalls](https://github.com/Davidobot/BetterJoy/issues/316); they do not prove a single cause for this report.
 
 ## Reliability pipeline
 
@@ -104,8 +134,9 @@ BetterJoy Direct only launches the bundled driver installer after explicit confi
 
 | Area | Result |
 |---|---|
-| Input regression | **363 checks passed** — report bounds, all 256 report IDs, USB transport and handshake responses, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, and Guide suppression |
-| UI and behavior | **38 checks passed** — bilingual text, driver onboarding, runtime settings, resizing, and tray restore |
+| Input regression | **405 checks passed** — report bounds, all 256 report IDs, USB transport and handshake responses, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, Guide suppression, live two-Pro layouts, concurrent rumble, and diagnostic timing |
+| UI and behavior | **59 bilingual strings complete; behavior checks passed** — driver onboarding, runtime settings, resizing, and tray restore |
+| GitHub update checks | **54 checks passed**, plus a live public API query — semantic versions, preview ordering, draft rejection, bounded responses, cancellation, and timeout |
 | Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
 | Physical hardware | **Bluetooth:** 704 XInput samples with disconnect/reconnect; **USB:** stable `IMU_DATA_OK`, 2,346 packets in 10 seconds, neutral gate ready, and virtual XInput slot 0 |
 
@@ -120,6 +151,7 @@ python tools/restore.py
 .\build-direct.ps1
 .\test-direct.ps1
 .\test-features.ps1
+.\test-updates.ps1
 ```
 
 With ViGEmBus installed, also run the virtual-controller lifecycle test:

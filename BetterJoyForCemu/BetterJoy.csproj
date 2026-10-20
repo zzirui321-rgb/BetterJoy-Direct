@@ -140,6 +140,7 @@
     <Compile Include="UiTextCatalog.cs" />
     <Compile Include="ViGEmBusInstaller.cs" />
     <Compile Include="ConnectionDiagnostics.cs" />
+    <Compile Include="ControllerTiming.cs" />
     <Compile Include="MainForm.Modern.cs" />
     <Compile Include="Controller\OutputControllerDualShock4.cs" />
     <Compile Include="Controller\OutputControllerXbox360.cs" />
@@ -166,6 +167,8 @@
       <DependentUpon>Reassign.cs</DependentUpon>
     </Compile>
     <Compile Include="UpdServer.cs" />
+    <Compile Include="ReleaseUpdates.cs" />
+    <Compile Include="MainForm.Updates.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="! Install the drivers in the Drivers folder">

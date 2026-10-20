@@ -9,7 +9,7 @@ BetterJoy 的专注型 Windows x64 分支：更安全的重连、运行时陀螺
 <p>
   <img alt="Windows 10 和 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white">
   <img alt="x64" src="https://img.shields.io/badge/architecture-x64-6C63FF">
-  <img alt="401 项回归检查" src="https://img.shields.io/badge/regression%20checks-401%20passing-2EA44F">
+  <img alt="405 项回归检查" src="https://img.shields.io/badge/regression%20checks-405%20passing-2EA44F">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
@@ -76,13 +76,43 @@ ViGEmBus 是系统驱动，无法真正“便携化”，因此仍需完成一�
 
 | 控件 | 输出 | 适用场景 |
 |---|---|---|
+| **布局：Nintendo（按字母）** | A→A、B→B、X→X、Y→Y | 按手柄字母匹配 Xbox 提示 |
+| **布局：Xbox（按位置，默认）** | A↔B、X↔Y | 保持 Xbox 面键物理位置 |
 | **Steam 快捷键** | Capture → `F12`；Home → `Shift+Tab` | Steam 截图和叠加层 |
 | **关闭陀螺仪** | 不转换运动输出 | 标准 Xbox 控制 |
 | **陀螺仪 → 左摇杆** | 虚拟左摇杆移动 | 实验性的移动控制 |
 | **陀螺仪 → 右摇杆** | 虚拟右摇杆移动 | 兼容面更广的陀螺仪瞄准 |
 | **陀螺仪 → 鼠标** | 直接移动 Windows 光标 | 鼠标视角游戏与桌面操作 |
 
+点击布局按钮可在两种布局之间切换，对所有已连接手柄立即生效并保存，无需重启。已有单独配置的 `SwapAB` / `SwapXY` 混合值会显示为“自定义”，首次点击后切换到 Nintendo 布局。
+
 Xbox/XInput 没有标准的原生陀螺仪字段。支持 DSU/Cemuhook 的软件可以改用可选 Motion Server。本地 Steam 游戏使用 Steam Input 原生处理陀螺仪时可能更顺滑；此时应退出 BetterJoy，或避免 Steam 同时读取物理手柄，以免产生双重输入。
+
+## 检查更新与作者信息
+
+窗口右上角显示 Direct 分支作者、当前版本和可点击的 GitHub 仓库入口。“检查更新”读取本仓库的 GitHub 正式 Release，显示可用新版并提供更新步骤；不会自动替换程序或安装驱动。当前程序版本为 `0.7.3`。
+
+“启动时检查更新”默认开启，可在底部关闭并记住选择。每次正常启动最多自动检查一次，不定时轮询；预览与诊断采集模式不联网检查。请求超时或 GitHub 限流时显示可重试状态，不会把失败误报为“已是最新版”，也不影响手柄输入。请求仅查询公开发布信息，不需要账号或令牌，不上传手柄数据或日志。
+
+更新步骤：
+
+1. 打开提示中的发布页面，下载 **BetterJoy-Direct-win-x64.zip** 并阅读发布说明。
+2. 完全退出旧版，包括托盘实例；备份旧目录的 `BetterJoyForCemu.exe.config` 和 `settings`（若存在）。
+3. 将完整新包解压到新的文件夹，避免边运行边覆盖。
+4. 对照旧 `.config` 在新版恢复语言、布局等偏好；需要时复制 `settings` 中保存的设置与校准。不要直接用旧 `.config` 覆盖新版，以免丢失新增选项。
+5. 运行新版并更新桌面快捷方式，确认正常后再自行清理旧目录。已经安装的 ViGEmBus 通常无需重装，以发布说明为准。
+
+`0.7.2` 及更早版本需要先手动安装一次含更新组件的新版，之后才会收到提醒。预发布 Release 不会作为正式更新推送；本地版本较新时不会提示降级。
+
+## 两个蓝牙 Pro 手柄卡顿排查
+
+新版将跨线程震动队列改为只保留最新状态，停止指令不再等待陈旧震动，并抑制重复状态写入。该代码问题已通过回归验证；双 Pro 蓝牙改善仍需反馈者实机确认，不能仅凭“蓝牙 5.3”判断适配器兼容性。
+
+1. 在同一游戏、同一适配器上比较单个和两个 Pro 手柄。
+2. 在高级设置将 `EnableRumble` 改为 `false`，保存并重启，再重复测试；结束后可恢复 `true`。
+3. 退出正在运行的 BetterJoy，双击测试包中的 `Capture-Diagnostics.cmd`。它会启动隐藏的诊断实例并采集 30 秒；期间在游戏中操作两个手柄，结束后将同目录生成的 `diagnostic-*.log` 提供给维护者。分别保存震动开/关两份记录。
+
+记录按 `padId` 区分手柄，包含有效 HID 报告间隔、同步输出提交和震动写入耗时。这些是主机端诊断指标，并非按键到画面的端到端延迟。上游也有[双蓝牙延迟反馈](https://github.com/Davidobot/BetterJoy/issues/230)和[震动相关卡顿反馈](https://github.com/Davidobot/BetterJoy/issues/316)，不能据此断言本次反馈的唯一原因。
 
 ## 可靠性链路
 
@@ -104,8 +134,9 @@ BetterJoy Direct 只有在用户明确同意并通过 Windows UAC 后才会启�
 
 | 范围 | 结果 |
 |---|---|
-| 输入回归 | **363 项通过**——报文边界、全部 256 个 report ID、USB 传输与握手响应、时间戳、重连释放门、校准、死区、Steam 快捷键按下沿、陀螺仪方向和 Guide 抑制 |
-| 界面与行为 | **38 项通过**——双语文案、驱动安装引导、运行时设置、窗口缩放和托盘恢复 |
+| 输入回归 | **405 项通过**——报文边界、全部 256 个 report ID、USB 传输与握手响应、时间戳、重连释放门、校准、死区、Steam 快捷键按下沿、陀螺仪方向、Guide 抑制、双 Pro 即时布局切换、震动并发与计时诊断 |
+| 界面与行为 | **59 组双语文案齐全，行为检查通过**——驱动安装引导、运行时设置、窗口缩放和托盘恢复 |
+| GitHub 更新检查 | **54 项通过**，并实际请求公开 API——版本排序、预发布比较、草稿拒绝、响应限长、取消和超时 |
 | 虚拟 Xbox 生命周期 | **连续 3 轮通过**——创建、移动、归零与断开 |
 | 实体硬件 | **蓝牙：**704 个 XInput 样本及断开/重连；**USB：**稳定 `IMU_DATA_OK`、10 秒 2346 个处理包、中立门就绪和虚拟 XInput 槽位 0 |
 
@@ -120,6 +151,7 @@ python tools/restore.py
 .\build-direct.ps1
 .\test-direct.ps1
 .\test-features.ps1
+.\test-updates.ps1
 ```
 
 安装 ViGEmBus 后，还可以运行虚拟手柄生命周期测试：

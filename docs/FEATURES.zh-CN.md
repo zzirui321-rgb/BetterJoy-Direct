@@ -20,6 +20,15 @@ Switch Pro / Joy-Con
 
 ## 主界面快捷设置
 
+### Nintendo / Xbox 布局
+
+点击布局按钮即时应用到所有已连接手柄并保存，无需重连：
+
+- Nintendo（按字母）：A→A、B→B、X→X、Y→Y。
+- Xbox（按位置，默认）：A↔B、X↔Y。
+
+底层沿用 `SwapAB` / `SwapXY`：两项都 `false` 是 Xbox，两项都 `true` 是 Nintendo；混合值显示“自定义”并保持原行为，点击后选择 Nintendo。更改仅影响输出映射，不改变物理手柄印字或游戏内图标。
+
 ### Steam 快捷键
 
 “Steam 快捷键”默认开启：
@@ -108,11 +117,14 @@ Valve 官方资料：[Steam Input 支持的设备](https://partner.steamgames.co
 | 配置键 | 默认值 | 作用 |
 |---|---:|---|
 | `UiLanguage` | `zh-CN` | 主界面语言，支持 `zh-CN` / `en-US` |
+| `CheckForUpdates` | `true` | 正常启动时异步检查一次 GitHub 正式 Release；底部可即时切换并保存 |
 | `EnableSteamShortcuts` | `true` | Capture→F12、Home→Shift+Tab |
 | `GyroToJoyOrMouse` | `none` | `none` / `joy_left` / `joy_right` / `mouse` |
 | `GyroStickInvertY` | `false` | 是否反转陀螺仪映射摇杆的垂直方向 |
 | `ShowAsXInput` | `true` | 输出虚拟 Xbox 360 控制器 |
 | `ShowAsDS4` | `false` | 输出虚拟 DS4；与 XInput 二选一更稳妥 |
+| `SwapAB` / `SwapXY` | `false` / `false` | 主界面布局按钮同时更新两项；混合配置仍可沿用 |
+| `EnableRumble` | `true` | 震动；双蓝牙卡顿时可关闭后保存重启作对照 |
 | `MotionServer` | `false` | 启用 DSU/Cemuhook UDP 运动数据 |
 | `UseHIDG` | `false` | 旧 HidGuardian 设备隐藏，默认不使用 |
 | `HomeLongPowerOff` | `true` | Home（或单侧 Capture）长按约 2 秒关机 |
@@ -120,6 +132,36 @@ Valve 官方资料：[Steam Input 支持的设备](https://partner.steamgames.co
 | `LocateRumbleDurationMs` | `120` | 定位震动时长，运行时限制到 60–180 ms |
 
 主界面的快捷设置立即生效。高级设置仍通过“保存并重启”应用。
+
+## 检查更新与作者信息
+
+窗口右上角显示 Direct 分支作者、当前版本和可点击的 GitHub 仓库入口。“检查更新”读取本仓库的 GitHub 正式 Release，显示可用新版并提供更新步骤；不会自动替换程序或安装驱动。当前程序版本为 `0.7.3`。
+
+“启动时检查更新”默认开启，可在底部关闭并记住选择。每次正常启动最多自动检查一次，不定时轮询；预览与诊断采集模式不联网检查。请求超时或 GitHub 限流时显示可重试状态，不会把失败误报为“已是最新版”，也不影响手柄输入。请求仅查询公开发布信息，不需要账号或令牌，不上传手柄数据或日志。
+
+更新步骤：
+
+1. 打开提示中的发布页面，下载 **BetterJoy-Direct-win-x64.zip** 并阅读发布说明。
+2. 完全退出旧版，包括托盘实例；备份旧目录的 `BetterJoyForCemu.exe.config` 和 `settings`（若存在）。
+3. 将完整新包解压到新的文件夹，避免边运行边覆盖。
+4. 对照旧 `.config` 在新版恢复语言、布局等偏好；需要时复制 `settings` 中保存的设置与校准。不要直接用旧 `.config` 覆盖新版，以免丢失新增选项。
+5. 运行新版并更新桌面快捷方式，确认正常后再自行清理旧目录。已经安装的 ViGEmBus 通常无需重装，以发布说明为准。
+
+`0.7.2` 及更早版本需要先手动安装一次含更新组件的新版，之后才会收到提醒。预发布 Release 不会作为正式更新推送；本地版本较新时不会提示降级。
+
+### 维护者发布约定
+
+更新检查读取 GitHub Release，单纯 push 提交不会产生更新提醒。正式发布前将 `BetterJoyForCemu/ReleaseUpdates.cs` 中的 `ProjectInfo.Version` 设为对应三段版本（例如 `0.7.3`，去掉 `-preview`），`AssemblyVersion` 设为 `0.7.3.0`；重建、测试后使用匹配的 `direct-v0.7.3` 标签，上传 `BetterJoy-Direct-win-x64.zip`，发布为正式 Release。预发布和草稿不作为稳定更新通知。版本信息源同时用于窗口、程序集和文件属性，不能只修改发布标题。
+
+## 双 Pro 蓝牙卡顿诊断
+
+震动反馈使用线程安全的最新状态交换，不回放过期指令，不重复发送相同状态。这消除了代码中确定的积压和并发问题，但尚无双 Pro 实机改善结论。
+
+保持同一适配器和游戏，比较单 Pro / 双 Pro，以及高级设置 `EnableRumble=false` 后保存重启的结果。退出已有 BetterJoy，再双击随包 `Capture-Diagnostics.cmd`，在 30 秒内操作手柄；它以隐藏窗口运行，结束后生成 `diagnostic-*.log`。震动开/关分别采集，避免混淆实验条件。
+
+`hidReports` 是接受的 HID 报告数；`imuSamples` 是解析器子样本，不能当成报告频率。`maxGapMs`、`outputMeanMs` / `outputMaxMs`、`rumbleMaxMs` 分别反映报告间隔、同步 Xbox 提交调用和震动写入耗时，均不是端到端游戏延迟。不要仅凭一个最大值推断适配器故障。默认 `MotionServer=false` 保持不变，也未启用丢弃输入队列或关闭 IMU 的实验优化。
+
+相关历史证据：[双蓝牙 #230](https://github.com/Davidobot/BetterJoy/issues/230)、[震动卡顿 #316](https://github.com/Davidobot/BetterJoy/issues/316)、[输入积压 #344](https://github.com/Davidobot/BetterJoy/issues/344)。
 
 ## Steam 叠加层排错
 
@@ -135,11 +177,12 @@ Valve 官方资料：[Steam Input 支持的设备](https://partner.steamgames.co
 
 ## 验证与边界
 
-- 输入自动回归：343 项，覆盖 HID 报文边界、Steam 快捷键、陀螺仪方向，并确认旧键鼠发射入口已经删除。
-- UI/功能回归：38 组双语文案，以及驱动安装引导、语言切换与保存、Steam/陀螺仪快捷设置、旧映射入口移除、窗口缩放和托盘恢复顺序。
+- 输入自动回归：405 项，覆盖 HID 报文边界、Steam 快捷键、陀螺仪方向，并确认旧键鼠发射入口已经删除。
+- UI/功能回归：59 组双语文案，以及驱动安装引导、语言切换与保存、Steam/陀螺仪快捷设置、旧映射入口移除、窗口缩放和托盘恢复顺序。
+- GitHub 更新回归：54 项，含语义版本、正式/预发布区分、限流/异常、取消和 8 秒超时；公开 API 实际请求通过。
 - 虚拟 Xbox 输出：连续 3 轮创建、移动、归零、断开。
 - 实体蓝牙记录：704 个 XInput 样本、1 次物理断开与成功重连；最终四轴归零，无输出错误。
-- 已验证 Switch Pro 蓝牙；USB、其他第三方手柄、具体游戏/反作弊和具体远程软件仍需在对应环境验证。
+- 已验证单个 Switch Pro 蓝牙和 USB 的初始化、报文流、中立门与虚拟槽位；双 Pro 蓝牙、其他第三方手柄、具体游戏/反作弊和远程软件仍需在对应环境验证。
 - 驱动缺失流程已通过静态路径、随包文件、签名和哈希验证；未在无驱动机器上实际执行安装或 UAC 流程。
 
 详细历史见 [`../CHANGELOG.md`](../CHANGELOG.md)，架构取舍见 [`direct-mode-decision.md`](direct-mode-decision.md)。

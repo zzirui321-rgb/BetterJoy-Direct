@@ -14,7 +14,12 @@ guide = '''BetterJoy Direct · Windows x64
 无需启动 Steam。在游戏/远程软件中选择 Xbox 360 / XInput。
 
 主界面点 English / 中文，可立即切换语言并记住选择。
+右上角显示作者和版本，GitHub 链接可一键打开仓库，“检查更新”提供正式版提醒和更新步骤。
+底部可关闭“启动时检查更新”；网络失败不影响手柄，不自动替换程序或安装驱动。
+更新时退出旧版，备份 BetterJoyForCemu.exe.config 和 settings，完整解压新包到新文件夹。
+对照旧配置恢复新版偏好，按需复制 settings；勿用旧 .config 整体覆盖新版。更新桌面快捷方式。
 “轻震定位”使用温和短脉冲，连续点击不会叠加震动。
+布局按钮可即时切换并保存：Nintendo 按字母 A→A；Xbox 按位置 A↔B、X↔Y。
 “Steam 快捷键”默认开启：Capture=F12，Home=Shift+Tab。
 陀螺仪可直接映射到左右摇杆或鼠标。
 
@@ -28,14 +33,26 @@ ViGEmBus 已停止维护；安装程序版本与校验值见 Drivers/README.txt�
 如果其它软件仍在映射物理手柄，先退出该软件以排除重复输入。
 
 点“测试 Xbox 输入”检查按键。高级设置点“保存并重启”生效。
-USB 和具体远程软件转发仍需在对应环境验证。
+双 Pro 蓝牙卡顿时，可将高级设置 EnableRumble=false 后保存重启作对照。
+退出 BetterJoy 后运行 Capture-Diagnostics.cmd，操作手柄 30 秒，将 diagnostic-*.log 提供给维护者。
+双 Pro 蓝牙改善和具体远程软件转发仍需在对应环境验证。
 恢复旧版：退出本版，运行原来的 BetterJoy 即可。
 
 源码与完整说明：https://github.com/zzirui321-rgb/BetterJoy-Direct
 上游：https://github.com/Davidobot/BetterJoy
 '''
 (app / '使用说明.txt').write_text(guide, encoding='utf-8-sig')
-names = ['BetterJoyForCemu.exe', 'BetterJoyForCemu.exe.config', 'Crc32.NET.dll',
+capture = r'''@echo off
+cd /d "%~dp0"
+echo Close other BetterJoy instances before capture.
+echo Use your controllers in the game for 30 seconds.
+set "betterjoy_log=%~dp0diagnostic-%RANDOM%-%RANDOM%.log"
+start "" /wait "%~dp0BetterJoyForCemu.exe" --diagnose "%betterjoy_log%" 30
+echo Diagnostic: %betterjoy_log%
+pause
+'''
+(app / 'Capture-Diagnostics.cmd').write_bytes(capture.replace('\n', '\r\n').encode('ascii'))
+names = ['Capture-Diagnostics.cmd', 'BetterJoyForCemu.exe', 'BetterJoyForCemu.exe.config', 'Crc32.NET.dll',
          'JetBrains.Annotations.dll', 'Nefarius.ViGEm.Client.dll', 'WindowsInput.dll',
          'x64/hidapi.dll', 'Drivers/ViGEmBusSetup_x64.msi', 'Drivers/README.txt',
          'LICENSE', '使用说明.txt']

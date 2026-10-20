@@ -11,6 +11,7 @@ namespace BetterJoyForCemu {
     public partial class MainForm {
         private Label projectIdentity;
         private LinkLabel projectLink;
+        private LinkLabel projectVideoLink;
         private Button updateButton;
         private CheckBox checkUpdatesBox;
         private GitHubRelease latestRelease;
@@ -24,6 +25,8 @@ namespace BetterJoyForCemu {
             projectIdentity = new Label { AutoSize = true, Location = new Point(0, 2), Font = new Font("Microsoft YaHei UI", 9) };
             projectLink = new LinkLabel { AutoSize = true, Text = "GitHub ↗", Location = new Point(0, 29), Tag = ProjectInfo.RepositoryUrl };
             projectLink.LinkClicked += (s, e) => OpenProjectPage(ProjectInfo.RepositoryUrl);
+            projectVideoLink = new LinkLabel { AutoSize = true, Location = new Point(0, 53), Tag = ProjectInfo.VideoUrl };
+            projectVideoLink.LinkClicked += (sender, args) => OpenProjectPage(ProjectInfo.VideoUrl);
             updateButton = new Button { Width = 185, Height = 28, Location = new Point(100, 25) };
             StyleButton(updateButton);
             updateButton.Click += async (s, e) => {
@@ -32,6 +35,7 @@ namespace BetterJoyForCemu {
             };
             panel.Controls.Add(projectIdentity);
             panel.Controls.Add(projectLink);
+            panel.Controls.Add(projectVideoLink);
             panel.Controls.Add(updateButton);
             return panel;
         }
@@ -56,6 +60,7 @@ namespace BetterJoyForCemu {
 
         private void RefreshProjectInfo() {
             projectIdentity.Text = String.Format(uiText["ProjectIdentity"], ProjectInfo.Author, ProjectInfo.Version);
+            projectVideoLink.Text = uiText["VideoLink"];
             checkUpdatesBox.Text = uiText["CheckUpdatesAtStartup"];
             updateButton.Enabled = !checkingUpdate;
             updateButton.Text = checkingUpdate ? uiText["UpdateChecking"]

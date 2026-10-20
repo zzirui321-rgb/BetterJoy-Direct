@@ -15,7 +15,7 @@ namespace BetterJoyForCemu {
             "DriverRestartRequired", "DriverInstallRetryFailed",
             "ButtonLayoutXbox", "ButtonLayoutNintendo", "ButtonLayoutCustom",
             "ButtonLayoutHintXbox", "ButtonLayoutHintNintendo", "ButtonLayoutHintCustom",
-            "ProjectIdentity", "CheckUpdatesAtStartup", "CheckUpdates", "UpdateChecking", "UpdateAvailable", "UpdateRetry", "UpdateTrayHint", "UpdateCurrent", "UpdateLocalNewer", "UpdateFailed", "UpdateVersions", "UpdateInstructions", "UpdateAssetMissing", "UpdateOpenPrompt", "OpenPageFailed"
+            "ProjectIdentity", "VideoLink", "CheckUpdatesAtStartup", "CheckUpdates", "UpdateChecking", "UpdateAvailable", "UpdateRetry", "UpdateTrayHint", "UpdateCurrent", "UpdateLocalNewer", "UpdateFailed", "UpdateVersions", "UpdateInstructions", "UpdateAssetMissing", "UpdateOpenPrompt", "OpenPageFailed"
         };
 
         private readonly IDictionary<string, string> values;
@@ -51,7 +51,8 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> Chinese() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
-                { "ProjectIdentity", "作者：{0} · v{1}" },
+                { "ProjectIdentity", "B站：{0} · v{1}" },
+                { "VideoLink", "B站视频 ↗" },
                 { "CheckUpdatesAtStartup", "启动时检查更新" },
                 { "CheckUpdates", "检查更新" },
                 { "UpdateChecking", "正在检查…" },
@@ -62,7 +63,7 @@ namespace BetterJoyForCemu {
                 { "UpdateLocalNewer", "当前版本：{0}\nGitHub 正式版：{1}\n本地版本比当前正式版更新，无需降级。" },
                 { "UpdateFailed", "暂时无法检查 GitHub 更新，可能是网络、请求限额或发布信息异常。手柄可继续使用，请稍后重试，也可点击 GitHub 查看 Releases。" },
                 { "UpdateVersions", "当前版本：{0}\n发现正式版：{1}" },
-                { "UpdateInstructions", "1. 下载 BetterJoy-Direct-win-x64.zip，并阅读发布说明。\n2. 完全退出旧版，备份旧目录中的 BetterJoyForCemu.exe.config 和 settings（若存在）。\n3. 将完整新包解压到新的文件夹。\n4. 对照旧配置在新版恢复偏好；需要时复制 settings。不要直接用旧 .config 覆盖新版，以免丢失新增选项。\n5. 运行新版，按需更新桌面快捷方式；确认正常后再自行清理旧目录。\n已有 ViGEmBus 通常无需重装，请以发布说明为准。" },
+                { "UpdateInstructions", "1. 下载 BetterJoy-Direct-win-x64.zip，并阅读发布说明。\n2. 完全退出旧版，包括托盘实例。\n3. 将压缩包内 BetterJoy-Direct 文件夹中的全部内容解压到原程序目录，替换同名文件。\n4. 运行新版。已有 ViGEmBus 通常无需重装，请以发布说明为准。\n\n覆盖更新会替换 BetterJoyForCemu.exe.config，语言、布局和高级选项可能恢复默认；独立 settings 文件不会被发布包覆盖。\n备份或解压到新文件夹是可选方案。希望保留偏好时，可先备份 .config，再在新版恢复对应设置；不要用旧 .config 整体覆盖新版。" },
                 { "UpdateAssetMissing", "此正式版尚未提供预期的 Windows x64 便携包，请稍后到发布页面确认；不要把源码包当作可运行程序。" },
                 { "UpdateOpenPrompt", "是否打开此版本的 GitHub 发布页面？" },
                 { "OpenPageFailed", "无法自动打开浏览器，请复制以下地址：" },
@@ -115,7 +116,8 @@ namespace BetterJoyForCemu {
 
         private static IDictionary<string, string> English() {
             return new Dictionary<string, string>(StringComparer.Ordinal) {
-                { "ProjectIdentity", "By {0} · v{1}" },
+                { "ProjectIdentity", "Bilibili: {0} · v{1}" },
+                { "VideoLink", "Bilibili video ↗" },
                 { "CheckUpdatesAtStartup", "Check updates at startup" },
                 { "CheckUpdates", "Check for updates" },
                 { "UpdateChecking", "Checking…" },
@@ -126,7 +128,7 @@ namespace BetterJoyForCemu {
                 { "UpdateLocalNewer", "Current version: {0}\nGitHub stable: {1}\nYour local build is newer than the stable release. No downgrade is needed." },
                 { "UpdateFailed", "GitHub could not be checked because of a network problem, request limit, or invalid release data. Controller input remains available. Retry later or use GitHub to view Releases." },
                 { "UpdateVersions", "Current version: {0}\nNew stable release: {1}" },
-                { "UpdateInstructions", "1. Download BetterJoy-Direct-win-x64.zip and read the release notes.\n2. Exit the old app and back up BetterJoyForCemu.exe.config and settings (if present) from its folder.\n3. Extract the complete new archive into a new folder.\n4. Restore preferences using the old config as a reference; copy settings if needed. Do not overwrite the new .config with the old one, as new options may be lost.\n5. Run the new app and update your desktop shortcut if needed. Remove the old folder yourself after verification.\nAn existing ViGEmBus installation usually needs no reinstall; follow the release notes." },
+                { "UpdateInstructions", "1. Download BetterJoy-Direct-win-x64.zip and read the release notes.\n2. Exit the old app completely, including its tray instance.\n3. Extract all contents of the archive’s BetterJoy-Direct folder into the existing app folder and replace matching files.\n4. Run the updated app. An existing ViGEmBus installation usually needs no reinstall; follow the release notes.\n\nOverwriting replaces BetterJoyForCemu.exe.config, so language, layout, and advanced options may reset. The separate settings file is not overwritten by the release archive.\nBacking up or using a new folder is optional. To retain preferences, back up the .config first and restore individual settings afterward; do not overwrite the new .config wholesale with the old one." },
                 { "UpdateAssetMissing", "This release does not yet contain the expected Windows x64 portable archive. Check the release page later; source archives are not runnable builds." },
                 { "UpdateOpenPrompt", "Open this version’s GitHub release page?" },
                 { "OpenPageFailed", "The browser could not be opened. Copy this address:" },

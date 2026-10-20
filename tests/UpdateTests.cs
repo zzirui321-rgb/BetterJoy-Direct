@@ -33,7 +33,13 @@ class UpdateTests {
         try { action(); } catch (Exception) { failed = true; }
         Check(failed, message);
     }
-    public static string Fixture(string tag = "direct-v0.7.4") {
+    static readonly string NextStableTag = NextTag();
+    static string NextTag() {
+        var current = new System.Version(ProjectInfo.AssemblyVersion);
+        return "direct-v" + current.Major + "." + current.Minor + "." + (current.Build + 1);
+    }
+    public static string Fixture(string tag = null) {
+        tag = tag ?? NextStableTag;
         return "{\"tag_name\":\"" + tag + "\",\"draft\":false,\"prerelease\":false,\"html_url\":\"https://malicious.example/update\",\"assets\":[{\"name\":\"BetterJoy-Direct-win-x64.zip\",\"state\":\"uploaded\",\"size\":123,\"browser_download_url\":\"" + ProjectInfo.ReleasesUrl + "/download/" + tag + "/BetterJoy-Direct-win-x64.zip\"}]}";
     }
     static async Task CheckTransport() {
@@ -108,11 +114,11 @@ class UpdateTests {
             }
             var release = GitHubRelease.Parse(Fixture());
             Check(release.HasPortableAsset && release.CompareToCurrent() > 0, "newer release and uploaded portable archive");
-            Check(release.PageUrl == ProjectInfo.ReleasesUrl + "/tag/direct-v0.7.4", "release link is pinned to the project, ignoring html_url");
+            Check(release.PageUrl == ProjectInfo.ReleasesUrl + "/tag/" + NextStableTag, "release link is pinned to the project, ignoring html_url");
             Check(!GitHubRelease.Parse(Fixture().Replace("releases/download/", "releases/elsewhere/")).HasPortableAsset, "reject unexpected asset URL");
             Check(!GitHubRelease.Parse(Fixture().Replace("\"size\":123", "\"size\":0")).HasPortableAsset, "zero-size assets are not ready");
             Check(!GitHubRelease.Parse(Fixture().Replace("\"state\":\"uploaded\"", "\"state\":\"new\"")).HasPortableAsset, "unfinished assets are not ready");
-            foreach (string invalid in new[] { "null", "[]", "{}", "not JSON", Fixture().Replace("\"draft\":false", "\"draft\":true"), Fixture().Replace("\"prerelease\":false", "\"prerelease\":true"), Fixture("direct-v0.7.4-rc.1"), Fixture().Replace("direct-v0.7.4", "invalid") })
+            foreach (string invalid in new[] { "null", "[]", "{}", "not JSON", Fixture().Replace("\"draft\":false", "\"draft\":true"), Fixture().Replace("\"prerelease\":false", "\"prerelease\":true"), Fixture(NextStableTag + "-rc.1"), Fixture().Replace(NextStableTag, "invalid") })
                 Reject(() => GitHubRelease.Parse(invalid), "reject malformed, draft, or preview response");
             var info = typeof(ProjectInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
             Check(info.InformationalVersion == ProjectInfo.Version, "file product version matches displayed version");

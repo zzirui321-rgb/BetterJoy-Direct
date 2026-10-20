@@ -152,6 +152,7 @@ class FeatureRegressionTests {
 
             var identity = (Label)typeof(MainForm).GetField("projectIdentity", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
             var projectLink = (LinkLabel)typeof(MainForm).GetField("projectLink", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
+            var videoLink = (LinkLabel)typeof(MainForm).GetField("projectVideoLink", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
             var updateButton = (Button)typeof(MainForm).GetField("updateButton", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
             var autoUpdates = (CheckBox)typeof(MainForm).GetField("checkUpdatesBox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(form);
             var updateClient = typeof(MainForm).GetField("updateClient", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -160,7 +161,8 @@ class FeatureRegressionTests {
             var busyField = typeof(MainForm).GetField("checkingUpdate", BindingFlags.Instance | BindingFlags.NonPublic);
             var refreshUpdates = typeof(MainForm).GetMethod("RefreshProjectInfo", BindingFlags.Instance | BindingFlags.NonPublic);
             if (!identity.Text.Contains(ProjectInfo.Author) || !identity.Text.Contains(ProjectInfo.Version) ||
-                !form.Text.Contains(ProjectInfo.Version) || (string)projectLink.Tag != ProjectInfo.RepositoryUrl)
+                !form.Text.Contains(ProjectInfo.Version) || (string)projectLink.Tag != ProjectInfo.RepositoryUrl || (string)videoLink.Tag != ProjectInfo.VideoUrl ||
+                videoLink.Top < projectLink.Bottom || videoLink.Text != english["VideoLink"])
                 Fail("Author, version, or project hyperlink is missing or inconsistent");
             if (updateClient.GetValue(form) != null)
                 Fail("Preview UI initiated an update request");
@@ -183,7 +185,7 @@ class FeatureRegressionTests {
                 Fail("Missing release asset is not explained");
             button.PerformClick();
             Application.DoEvents();
-            foreach (Control control in new Control[] { identity, projectLink, updateButton, autoUpdates })
+            foreach (Control control in new Control[] { identity, projectLink, videoLink, updateButton, autoUpdates })
                 if (control.Right > control.Parent.ClientSize.Width || control.Bottom > control.Parent.ClientSize.Height)
                     Fail("Project/update controls are clipped in the compact window: " + control.Text);
             if (identity.PreferredSize.Width > identity.Parent.ClientSize.Width)

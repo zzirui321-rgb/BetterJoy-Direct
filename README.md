@@ -90,17 +90,20 @@ Xbox/XInput has no standard native gyro field. Applications with DSU/Cemuhook su
 
 ## Updates and project information
 
-The top-right area shows the Direct fork author, current version, and a clickable GitHub repository link. **Check for updates** reads this repository’s stable GitHub Release, highlights a newer version, and explains how to update. It does not replace running files or install drivers. The current application version is `0.7.3`.
+The top-right area shows the author, **Bilibili: 蓝大丶**, and the current version. The GitHub repository link has a [Bilibili video](https://www.bilibili.com/video/BV1XUaY6hE5w) link beneath it. **Check for updates** reads this repository’s stable GitHub Release, highlights a newer version, and explains how to update. It does not replace running files or install drivers. The current application version is `0.7.4`.
 
 **Check updates at startup** is enabled by default and can be turned off at the bottom of the window. Normal startup checks once, with no periodic polling; preview and diagnostic capture modes skip the check. Timeouts or GitHub rate limits leave a retry state instead of falsely reporting “up to date,” and do not interrupt controller input. Only public release information is requested: no account or token is needed, and controller data and logs are not uploaded.
 
 To update:
 
 1. Open the release page from the notification, download **BetterJoy-Direct-win-x64.zip**, and read the release notes.
-2. Exit the old app, including its tray instance. Back up `BetterJoyForCemu.exe.config` and `settings` from its folder if present.
-3. Extract the complete new archive into a new folder.
-4. Use the old `.config` as a reference to restore language, layout, and other preferences in the new app. Copy `settings` if needed for its saved settings/calibration. Do not overwrite the new `.config` with the old file, as new options may be lost.
-5. Run the new app and update your desktop shortcut. Remove the old folder yourself after verification. An existing ViGEmBus installation usually needs no reinstall; follow the release notes.
+2. Exit the old app completely, including its tray instance.
+3. Extract all contents of the archive’s `BetterJoy-Direct` folder into the existing app folder and replace matching files. Avoid nesting another `BetterJoy-Direct` folder inside it.
+4. Run the updated app from that folder. Existing desktop shortcuts still work if the path is unchanged. An existing ViGEmBus installation usually needs no reinstall; follow the release notes.
+
+Overwriting replaces `BetterJoyForCemu.exe.config`, so language, layout, and advanced options may reset. The separate `settings` file is not included in the release archive and is retained. If you are happy to reselect preferences, you can overwrite directly without a backup.
+
+**Optional:** back up `.config` and `settings`, or extract into a new folder, if you want to preserve settings or keep a rollback copy. Restore individual options using the old config as a reference; do not overwrite the new `.config` wholesale, as new options may be lost. When using a new folder, copy `settings` and update shortcuts if needed.
 
 Users of `0.7.2` or earlier must manually install a version containing this component once before future reminders become available. Prerelease Releases are not offered as stable updates, and newer local builds are not prompted to downgrade.
 
@@ -135,7 +138,7 @@ BetterJoy Direct only launches the bundled driver installer after explicit confi
 | Area | Result |
 |---|---|
 | Input regression | **405 checks passed** — report bounds, all 256 report IDs, USB transport and handshake responses, timestamps, reconnect gating, calibration, deadzones, Steam shortcut edges, gyro direction, Guide suppression, live two-Pro layouts, concurrent rumble, and diagnostic timing |
-| UI and behavior | **59 bilingual strings complete; behavior checks passed** — driver onboarding, runtime settings, resizing, and tray restore |
+| UI and behavior | **60 bilingual strings complete; behavior checks passed** — driver onboarding, runtime settings, resizing, and tray restore |
 | GitHub update checks | **54 checks passed**, plus a live public API query — semantic versions, preview ordering, draft rejection, bounded responses, cancellation, and timeout |
 | Virtual Xbox lifecycle | **3 consecutive cycles passed** — create, move, neutralize, and disconnect |
 | Physical hardware | **Bluetooth:** 704 XInput samples with disconnect/reconnect; **USB:** stable `IMU_DATA_OK`, 2,346 packets in 10 seconds, neutral gate ready, and virtual XInput slot 0 |

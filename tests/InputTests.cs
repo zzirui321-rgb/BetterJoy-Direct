@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Reflection;
 using BetterJoyForCemu;
@@ -95,7 +95,66 @@ class InputTests {
         Check(concurrent.Snapshot().Contains("outputCount=2000 "), "timing does not lose concurrent samples");
     }
 
+    static void CheckReceiverReports() {
+        var guard = new InputReportGuard();
+        var frame = Report(7);
+        frame[3] = 0x01;
+        Check(guard.Accept(frame, frame.Length, true, 0), "receiver initial frame is accepted");
+        frame[3] = 0x02;
+        Check(guard.Accept(frame, frame.Length, true, 20), "receiver changed buttons with constant timestamp are accepted");
+        frame[3] = 0;
+        Check(guard.Accept(frame, frame.Length, true, 300) && guard.IsArmed,
+            "receiver release with constant timestamp opens the neutral gate");
+        Check(!guard.Accept(frame, frame.Length, true, 400), "identical receiver frame is not parsed twice");
+        guard = new InputReportGuard();
+        Check(guard.Accept(Report(0), 49, true, 0) && !guard.IsArmed, "constant neutral receiver starts settle window");
+        Check(guard.Accept(Report(0), 49, true, 300) && guard.IsArmed,
+            "constant neutral receiver completes settle without a changing timestamp");
+        guard = new InputReportGuard();
+        for (int time = 0; time <= 3000; time += 20) {
+            InputReportDisposition result = guard.Observe(Report(0), 49, true, time);
+            Check(result != InputReportDisposition.Invalid,
+                "identical valid receiver frames retain liveness at " + time + "ms");
+            Check(result == ((time == 0 || time == 300) ? InputReportDisposition.Process : InputReportDisposition.Duplicate),
+                "receiver only parses initial and newly armed neutral state at " + time + "ms");
+        }
+        Check(guard.Snapshot().Contains("validReports=151 rejectedReports=0 duplicateReports=149 repeatedTimestamps=150"),
+            "receiver diagnostics distinguish liveness, duplicate payloads and repeated counters");
+        Check(guard.Observe(Report(0), 48, true, 3020) == InputReportDisposition.Invalid,
+            "short receiver frames do not retain liveness");
+        var acknowledgement = Report(0); acknowledgement[0] = 0x21;
+        Check(guard.Observe(acknowledgement, 49, true, 3040) == InputReportDisposition.Invalid,
+            "command acknowledgements do not retain liveness");
+        Check(guard.Snapshot().Contains("rejectedReports=2") && guard.Snapshot().Contains("lastReportId=0x21 lastReportLength=49"),
+            "receiver diagnostics expose rejected report type and length");
+        var changedStick = Report(0); changedStick[6] = 0x80;
+        Check(guard.Observe(changedStick, 49, true, 3060) == InputReportDisposition.Process,
+            "receiver changed stick with fixed timestamp is processed");
+        Check(!guard.HasNewMotionSamples, "button/stick-only updates do not reintegrate old IMU samples");
+        var changedImu = (byte[])changedStick.Clone(); changedImu[19] = 0x10;
+        Check(guard.Observe(changedImu, 49, true, 3080) == InputReportDisposition.Process,
+            "receiver changed IMU sample with fixed timestamp is processed");
+        Check(guard.HasNewMotionSamples, "fixed-counter changed IMU payload provides new motion samples");
+        Check(guard.Observe(changedImu, 49, true, 3100) == InputReportDisposition.Duplicate,
+            "receiver unchanged IMU sample is not integrated again");
+        Check(!guard.HasNewMotionSamples, "duplicate payload has no new motion sample");
+        changedImu[1]++;
+        Check(guard.Observe(changedImu, 49, true, 3120) == InputReportDisposition.Process && guard.HasNewMotionSamples,
+            "advancing counter preserves genuine new samples even when IMU bytes match");
+        guard = new InputReportGuard();
+        var held = Report(0); held[4] = 0x20;
+        guard.Observe(held, 49, true, 0);
+        Check(guard.Observe(held, 49, true, 2000) == InputReportDisposition.Duplicate && !guard.IsArmed,
+            "duplicate held wake button never opens neutral gate");
+        Check(guard.Observe(null, 49, true, 2020) == InputReportDisposition.Invalid,
+            "null receiver frame is invalid");
+        var buttonOnly = new byte[12]; buttonOnly[0] = 0x30;
+        Check(guard.Observe(buttonOnly, 12, false, 2040) == InputReportDisposition.Process,
+            "button-only controllers preserve supported short layout");
+    }
+
     static void Run() {
+        CheckReceiverReports();
         CheckRumbleMailbox();
         CheckControllerTiming();
         Check(UsbConnectionHelper.IsUsbTransport(@"\\?\hid#vid_057e&pid_2009", UsbConnectionHelper.LegacyUsbSerial, true), "legacy USB serial");

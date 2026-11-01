@@ -38,6 +38,7 @@ namespace BetterJoyForCemu {
                     File.WriteAllText(destination, e.ExceptionObject.ToString());
                 };
                 log.AppendLine("BetterJoy Direct hardware diagnostic " + DateTimeOffset.Now.ToString("O"));
+                log.AppendLine("Version=" + ProjectInfo.Version);
                 log.AppendLine("EnableRumble=" + ConfigurationManager.AppSettings["EnableRumble"] + " MotionServer=" + ConfigurationManager.AppSettings["MotionServer"]);
                 log.AppendLine("Timing measures valid HID report gaps and synchronous host calls, not end-to-end controller latency. imuSamples counts parser sub-samples, not HID reports.");
                 var timer = new Timer { Interval = 250 };
@@ -51,6 +52,7 @@ namespace BetterJoyForCemu {
                                 samples, device.isPro, device.state, device.connection, device.packetCounter,
                                 String.Join(",", device.GetStick()), String.Join(",", device.GetStick2()), device.PadId));
                             log.AppendLine(device.Timing.Snapshot());
+                            log.AppendLine(device.InputReportSummary);
                             log.AppendLine("ready=" + device.InputReady + " outputError=" + device.LastOutputError);
                             if (device.out_xbox != null) log.AppendLine("virtualSlot=" + device.out_xbox.UserIndex);
                         }

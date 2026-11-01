@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 
 namespace BetterJoyForCemu {
     public static class ProjectInfo {
-        public const string Version = "0.7.4";
-        public const string AssemblyVersion = "0.7.4.0";
+        public const string Version = "0.7.5-rc";
+        public const string AssemblyVersion = "0.7.5.0";
         public const string Author = "蓝大丶";
         public const string VideoUrl = "https://www.bilibili.com/video/BV1XUaY6hE5w";
         public const string RepositoryUrl = "https://github.com/zzirui321-rgb/BetterJoy-Direct";

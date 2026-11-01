@@ -612,29 +612,36 @@ namespace BetterJoyForCemu {
         private readonly SteamShortcutRouter steamShortcutRouter =
             new SteamShortcutRouter(new WindowsSteamShortcutEmitter());
         public bool InputReady { get { return inputGuard.IsArmed; } }
+        public string InputReportSummary { get { return inputGuard.Snapshot(); } }
         public string LastOutputError { get; private set; }
         private int ReceiveRaw() {
             if (handle == IntPtr.Zero) return -2;
             byte[] raw_buf = new byte[report_len];
             int ret = HIDapi.hid_read_timeout(handle, raw_buf, new UIntPtr(report_len), 5);
             if (stop_polling) return 0;
+            return ProcessInputReport(raw_buf, ret, inputClock.ElapsedMilliseconds);
+        }
 
-            if (ret > 0 && !inputGuard.Accept(raw_buf, ret, !(isSnes || is64), inputClock.ElapsedMilliseconds))
-                return 0;
+        private int ProcessInputReport(byte[] raw_buf, int ret, long elapsedMilliseconds) {
+            if (ret > 0) {
+                InputReportDisposition disposition = inputGuard.Observe(raw_buf, ret, !(isSnes || is64), elapsedMilliseconds);
+                if (disposition == InputReportDisposition.Invalid) return 0;
+                if (ConnectionDiagnostics.IsRunning) Timing.RecordInput(Stopwatch.GetTimestamp());
+                if (disposition == InputReportDisposition.Duplicate) return ret;
+            }
 
             if (ret > 0) {
-                if (ConnectionDiagnostics.IsRunning) Timing.RecordInput(Stopwatch.GetTimestamp());
-                // Process packets as soon as they come
-                for (int n = 0; n < 3; n++) {
-                    ExtractIMUValues(raw_buf, n);
+                bool processMotion = isSnes || is64 || inputGuard.HasNewMotionSamples;
+                for (int n = 0; n < (processMotion ? 3 : 1); n++) {
+                    if (processMotion) ExtractIMUValues(raw_buf, n);
 
                     byte lag = (byte)Math.Max(0, raw_buf[1] - ts_en - 3);
                     if (n == 0) {
-                        Timestamp += (ulong)lag * 5000; // add lag once
+                        if (processMotion) Timestamp += (ulong)lag * 5000; // add lag once
                         ProcessButtonsAndStick(raw_buf);
 
                         // process buttons here to have them affect DS4
-                        if (inputGuard.IsArmed) DoThingsWithButtons();
+                        if (inputGuard.IsArmed) DoThingsWithButtons(processMotion);
                         else {
                             Array.Clear(buttons, 0, buttons.Length);
                             Array.Clear(buttons_down, 0, buttons_down.Length);
@@ -650,11 +657,12 @@ namespace BetterJoyForCemu {
                         if (newbat != battery)
                             BatteryChanged();
                     }
-                    Timestamp += 5000; // 5ms difference
-
-                    packetCounter++;
-                    if (Program.server != null)
-                        Program.server.NewReportIncoming(this);
+                    if (processMotion) {
+                        Timestamp += 5000; // 5ms difference
+                        packetCounter++;
+                        if (Program.server != null)
+                            Program.server.NewReportIncoming(this);
+                    }
 
                     if (out_ds4 != null) {
                         try {
@@ -679,8 +687,7 @@ namespace BetterJoyForCemu {
 
 
                 if (ts_en == raw_buf[1] && !(isSnes || is64)) {
-                    form.AppendTextBox("Duplicate timestamp enqueued.\r\n");
-                    DebugPrint(string.Format("Duplicate timestamp enqueued. TS: {0:X2}", ts_en), DebugType.THREADING);
+                    DebugPrint(string.Format("Changed input with repeated controller timestamp: {0:X2}", ts_en), DebugType.THREADING);
                 }
                 ts_en = raw_buf[1];
                 DebugPrint(string.Format("Enqueue. Bytes read: {0:D}. Timestamp: {1:X2}", ret, raw_buf[1]), DebugType.THREADING);
@@ -718,7 +725,7 @@ namespace BetterJoyForCemu {
             return (invertY ? -1.0f : 1.0f) * sensitivity * pitchDelta;
         }
 
-        private void DoThingsWithButtons() {
+        private void DoThingsWithButtons(bool processMotion) {
             int powerOffButton = (int)((isPro || !isLeft || other != null) ? Button.HOME : Button.CAPTURE);
 
             long timestamp = Stopwatch.GetTimestamp();
@@ -792,6 +799,9 @@ namespace BetterJoyForCemu {
                 SimulateContinous((int)Button.SL, Config.Value("sl_r"));
                 SimulateContinous((int)Button.SR, Config.Value("sr_r"));
             }
+
+            // A fixed-counter receiver can update buttons without a new IMU sample.
+            if (!processMotion) return;
 
             // Filtered IMU data
             this.cur_rotation = AHRS.GetEulerAngles();
@@ -901,6 +911,7 @@ namespace BetterJoyForCemu {
                     if (out_ds4 != null) out_ds4.UpdateInput(new OutputControllerDualShock4InputState());
                     state = state_.DROPPED;
                     form.AppendTextBox("Dropped.\r\n");
+                    form.AppendTextBox(InputReportSummary + "\r\n");
 
                     DebugPrint("Connection lost. Is the Joy-Con connected?", DebugType.ALL);
                     break;
@@ -1355,7 +1366,8 @@ namespace BetterJoyForCemu {
                     return read_buf;
                 }
             }
-            throw new System.IO.IOException("Calibration reply missing or invalid; reconnect the controller.");
+            throw new System.IO.IOException(String.Format("Calibration reply missing or invalid: address=0x{0:X2}{1:X2}, expectedDataLength={2}, replyLength={3}, replyId={4}. Reconnect the controller.",
+                addr1, addr2, len, buf_.Length, buf_.Length > 0 ? "0x" + buf_[0].ToString("X2") : "none"));
         }
 
         private void PrintArray<T>(T[] arr, DebugType d = DebugType.NONE, uint len = 0, uint start = 0, string format = "{0:S}") {

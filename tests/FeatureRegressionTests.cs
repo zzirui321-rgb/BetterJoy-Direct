@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
@@ -57,6 +57,39 @@ class FeatureRegressionTests {
             form.Opacity = 0;
             form.Show();
             Application.DoEvents();
+            var receiver = new Joycon(IntPtr.Zero, true, false, .05f, true, "receiver-test", "receiver-test", 0, true, false, false, true);
+            receiver.form = form;
+            receiver.battery = 0;
+            typeof(Joycon).GetMethod("dump_calibration_data", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(receiver, null);
+            var processReport = typeof(Joycon).GetMethod("ProcessInputReport", BindingFlags.Instance | BindingFlags.NonPublic);
+            var receiverFrame = new byte[49]; receiverFrame[0] = 0x30;
+            receiverFrame[7] = receiverFrame[10] = 0x08;
+            receiverFrame[8] = receiverFrame[11] = 0x80;
+            processReport.Invoke(receiver, new object[] { receiverFrame, 49, 0L });
+            processReport.Invoke(receiver, new object[] { receiverFrame, 49, 300L });
+            if (!receiver.InputReady) Fail("Receiver neutral gate did not arm with fixed counter");
+            int motionSamples = receiver.packetCounter;
+            ulong motionTimestamp = receiver.Timestamp;
+            for (long time = 320; time <= 3000; time += 20)
+                if ((int)processReport.Invoke(receiver, new object[] { receiverFrame, 49, time }) != 49)
+                    Fail("Identical valid receiver frame lost its positive liveness result");
+            receiverFrame[3] = 0x08;
+            processReport.Invoke(receiver, new object[] { receiverFrame, 49, 3020L });
+            if (!receiver.GetButton(Joycon.Button.A)) Fail("Fixed-counter receiver lost changed A input");
+            receiverFrame[3] = 0;
+            processReport.Invoke(receiver, new object[] { receiverFrame, 49, 3040L });
+            if (receiver.GetButton(Joycon.Button.A)) Fail("Fixed-counter receiver lost A release");
+            if (receiver.packetCounter != motionSamples || receiver.Timestamp != motionTimestamp)
+                Fail("Button-only receiver reports fabricated new IMU samples or timestamps");
+            receiverFrame[19] = 0x10;
+            processReport.Invoke(receiver, new object[] { receiverFrame, 49, 3060L });
+            if (receiver.packetCounter != motionSamples + 3 || receiver.Timestamp <= motionTimestamp)
+                Fail("Receiver new IMU payload did not process all three real motion samples");
+            if ((int)processReport.Invoke(receiver, new object[] { receiverFrame, 48, 3080L }) != 0)
+                Fail("Short receiver report incorrectly retained liveness");
+            receiverFrame[0] = 0x21;
+            if ((int)processReport.Invoke(receiver, new object[] { receiverFrame, 49, 3100L }) != 0)
+                Fail("Receiver command acknowledgement incorrectly retained liveness");
             var field = typeof(MainForm).GetField("languageButton", BindingFlags.Instance | BindingFlags.NonPublic);
             var button = field == null ? null : field.GetValue(form) as Button;
             if (button == null) Fail("Language button was not created");
@@ -211,6 +244,7 @@ class FeatureRegressionTests {
                 Fail("Quick input controls did not update runtime behavior");
         }
 
+        Console.WriteLine("PASS: real receiver parser preserves liveness, A press/release, and fresh-only IMU processing");
         Console.WriteLine("PASS: gentle locate profile " + profile.Strength + " for " + profile.DurationMs + "ms");
         Console.WriteLine("PASS: " + UiTextCatalog.RequiredKeys.Length + " bilingual UI strings and two-way toggle");
         Console.WriteLine("PASS: bundled ViGEmBus installer path resolves under Drivers");

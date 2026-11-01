@@ -206,6 +206,8 @@ namespace BetterJoyForCemu {
                     bool isSnes = prod_id == product_snes;
                     bool is64 = prod_id == product_n64;
                     bool isUsbTransport = UsbConnectionHelper.IsUsbTransport(enumerate.path, serialNumber, isNintendoController && thirdParty == null);
+                    form.AppendTextBox(String.Format("HID controller VID={0:X4} PID={1:X4} usage={2:X4}:{3:X4} usb={4} thirdParty={5}.\r\n",
+                        enumerate.vendor_id, enumerate.product_id, enumerate.usage_page, enumerate.usage, isUsbTransport, thirdParty != null));
                     j.Add(new Joycon(handle, EnableIMU, EnableLocalize & EnableIMU, 0.05f, isLeft, enumerate.path, serialNumber, j.Count, isPro, isSnes, is64, thirdParty != null, isUsbTransport));
 
                     foundNew = true;

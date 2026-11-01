@@ -4,6 +4,14 @@
 
 上游基线：Davidobot/BetterJoy `b6715638a3ed1084f8968e8cafebbc6fe2ed0096`。
 
+## [Unreleased] - Receiver compatibility candidate
+
+- 修复固定时间戳的合法 HID 报文被一律丢弃的问题：按完整内容去重，按键、摇杆或 IMU 数据变化仍正常处理；合法重复帧保活，避免错误触发 1.5 秒断线重连。重新连接后的松键等待及短包/报告类型校验保留。
+- 同计数器下仅按键/摇杆变化时不重复积分旧 IMU 样本；新 IMU 数据和正常递增计数器仍按原流程处理。
+- 诊断新增版本、VID/PID、HID usage、有效/拒绝/重复报文计数和最近报告类型/长度；标定异常附带地址与回复信息，便于区分接收器协议与标定问题。
+- Fixed input rejection for valid HID frames with an unchanged timestamp: deduplicate complete payloads, process changed input, and retain liveness for identical valid frames. Neutral settling and report validation remain in place.
+- Added diagnostic identity and report counters. This candidate has not been verified on J20POR hardware; XInput-only receivers are not converted into Switch HID support by this change.
+
 ## [Direct 0.7.4] - 2026-10-20
 
 ### 界面

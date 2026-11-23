@@ -119,6 +119,7 @@ namespace BetterJoyForCemu {
 
         private volatile bool stop_polling = true;
         private bool imu_enabled = false;
+        private bool usingUsbFallbackCalibration;
         private Int16[] acc_r = { 0, 0, 0 };
         private Int16[] acc_neutral = { 0, 0, 0 };
         private Int16[] acc_sensiti = { 0, 0, 0 };
@@ -481,7 +482,7 @@ namespace BetterJoyForCemu {
             BlinkHomeLight();
             SetLEDByPlayerNum(PadId);
 
-            Subcommand(0x40, new byte[] { (imu_enabled ? (byte)0x1 : (byte)0x0) }, 1);
+            Subcommand(0x40, new byte[] { (imu_enabled && !usingUsbFallbackCalibration ? (byte)0x1 : (byte)0x0) }, 1);
             Subcommand(0x48, new byte[] { 0x01 }, 1);
 
             Subcommand(0x3, new byte[] { 0x30 }, 1);
@@ -631,7 +632,7 @@ namespace BetterJoyForCemu {
             }
 
             if (ret > 0) {
-                bool processMotion = isSnes || is64 || inputGuard.HasNewMotionSamples;
+                bool processMotion = !usingUsbFallbackCalibration && (isSnes || is64 || inputGuard.HasNewMotionSamples);
                 for (int n = 0; n < (processMotion ? 3 : 1); n++) {
                     if (processMotion) ExtractIMUValues(raw_buf, n);
 
@@ -1204,7 +1205,7 @@ namespace BetterJoyForCemu {
             }
         }
 
-        private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true) {
+        private byte[] Subcommand(byte sc, byte[] buf, uint len, bool print = true, Action<byte[], int> observeReport = null) {
             byte[] buf_ = new byte[report_len];
             byte[] response = new byte[report_len];
             Array.Copy(default_buf, 0, buf_, 2, 8);
@@ -1215,12 +1216,18 @@ namespace BetterJoyForCemu {
             if (global_count == 0xf) global_count = 0;
             else ++global_count;
             if (print) { PrintArray(buf_, DebugType.COMMS, len, 11, "Subcommand 0x" + string.Format("{0:X2}", sc) + " sent. Data: 0x{0:S}"); };
-            HIDapi.hid_write(handle, buf_, new UIntPtr(len + 11));
+            int written = HIDapi.hid_write(handle, buf_, new UIntPtr(len + 11));
+            if (observeReport != null && written <= 0)
+                throw new System.IO.IOException("Calibration command write failed: " + GetHidError());
             int tries = 0;
             int received;
             do {
                 Array.Clear(response, 0, response.Length);
                 int res = received = HIDapi.hid_read_timeout(handle, response, new UIntPtr(report_len), 100);
+                if (observeReport != null) {
+                    if (received < 0) throw new System.IO.IOException("Calibration read failed: " + GetHidError());
+                    observeReport(response, received);
+                }
                 if (res < 1) DebugPrint("No response.", DebugType.COMMS);
                 else if (print) { PrintArray(response, DebugType.COMMS, report_len - 1, 1, "Response ID 0x" + string.Format("{0:X2}", response[0]) + ". Data: 0x{0:S}"); }
                 tries++;
@@ -1234,35 +1241,62 @@ namespace BetterJoyForCemu {
 
         private void dump_calibration_data() {
             if (isSnes || is64 || thirdParty) {
-                short[] temp = (short[])ConfigurationManager.AppSettings["acc_sensiti"].Split(',').Select(s => short.Parse(s)).ToArray();
-                acc_sensiti[0] = temp[0]; acc_sensiti[1] = temp[1]; acc_sensiti[2] = temp[2];
-                temp = (short[])ConfigurationManager.AppSettings["gyr_sensiti"].Split(',').Select(s => short.Parse(s)).ToArray();
-                gyr_sensiti[0] = temp[0]; gyr_sensiti[1] = temp[1]; gyr_sensiti[2] = temp[2];
-                ushort[] temp2 = (ushort[])ConfigurationManager.AppSettings["stick_cal"].Split(',').Select(s => ushort.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber)).ToArray();
-                stick_cal[0] = temp2[0]; stick_cal[1] = temp2[1]; stick_cal[2] = temp2[2];
-                stick_cal[3] = temp2[3]; stick_cal[4] = temp2[4]; stick_cal[5] = temp2[5];
-                deadzone = ushort.Parse(ConfigurationManager.AppSettings["deadzone"]);
-                temp2 = (ushort[])ConfigurationManager.AppSettings["stick2_cal"].Split(',').Select(s => ushort.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber)).ToArray();
-                stick2_cal[0] = temp2[0]; stick2_cal[1] = temp2[1]; stick2_cal[2] = temp2[2];
-                stick2_cal[3] = temp2[3]; stick2_cal[4] = temp2[4]; stick2_cal[5] = temp2[5];
-                deadzone2 = ushort.Parse(ConfigurationManager.AppSettings["deadzone2"]);
+                LoadConfiguredCalibration();
                 return;
             }
 
             HIDapi.hid_set_nonblocking(handle, 0);
-            byte[] buf_ = ReadSPI(0x80, (isLeft ? (byte)0x12 : (byte)0x1d), 9); // get user calibration data if possible
-            bool found = false;
-            for (int i = 0; i < 9; ++i) {
-                if (buf_[i] != 0xff) {
+            LoadCalibration((request, observe) => Subcommand(0x10, request, 5, false, observe));
+            HIDapi.hid_set_nonblocking(handle, 1);
+        }
+
+        private void LoadConfiguredCalibration() {
+            short[] temp = (short[])ConfigurationManager.AppSettings["acc_sensiti"].Split(',').Select(s => short.Parse(s)).ToArray();
+            acc_sensiti[0] = temp[0]; acc_sensiti[1] = temp[1]; acc_sensiti[2] = temp[2];
+            temp = (short[])ConfigurationManager.AppSettings["gyr_sensiti"].Split(',').Select(s => short.Parse(s)).ToArray();
+            gyr_sensiti[0] = temp[0]; gyr_sensiti[1] = temp[1]; gyr_sensiti[2] = temp[2];
+            ushort[] temp2 = (ushort[])ConfigurationManager.AppSettings["stick_cal"].Split(',').Select(s => ushort.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber)).ToArray();
+            stick_cal[0] = temp2[0]; stick_cal[1] = temp2[1]; stick_cal[2] = temp2[2];
+            stick_cal[3] = temp2[3]; stick_cal[4] = temp2[4]; stick_cal[5] = temp2[5];
+            deadzone = ushort.Parse(ConfigurationManager.AppSettings["deadzone"]);
+            temp2 = (ushort[])ConfigurationManager.AppSettings["stick2_cal"].Split(',').Select(s => ushort.Parse(s.Substring(2), System.Globalization.NumberStyles.HexNumber)).ToArray();
+            stick2_cal[0] = temp2[0]; stick2_cal[1] = temp2[1]; stick2_cal[2] = temp2[2];
+            stick2_cal[3] = temp2[3]; stick2_cal[4] = temp2[4]; stick2_cal[5] = temp2[5];
+            deadzone2 = ushort.Parse(ConfigurationManager.AppSettings["deadzone2"]);
+        }
+
+        private bool CanUseUsbFallback(MissingSpiCalibrationException error) {
+            return isUSB && isPro && !isSnes && !is64 && error.HasInputStream;
+        }
+
+        private void LoadCalibration(Func<byte[], Action<byte[], int>, byte[]> exchange) {
+            try {
+                LoadDeviceCalibration(exchange);
+            } catch (MissingSpiCalibrationException error) when (CanUseUsbFallback(error)) {
+                LoadConfiguredCalibration();
+                usingUsbFallbackCalibration = true;
+                form.AppendTextBox("USB Pro calibration unavailable while input is streaming. Using configured stick calibration with motion disabled. " + error.Message + "\r\n");
+            }
+        }
+
+        private byte[] ReadStickCalibration(bool left, Func<byte[], Action<byte[], int>, byte[]> exchange) {
+            try {
+                byte[] user = ReadSpiCalibration(0x80, left ? (byte)0x12 : (byte)0x1d, 9, exchange);
+                if (user.Any(value => value != 0xff)) {
                     form.AppendTextBox("Using user stick calibration data.\r\n");
-                    found = true;
-                    break;
+                    return user;
                 }
+            } catch (MissingSpiCalibrationException error) when (CanUseUsbFallback(error)) {
+                form.AppendTextBox("USB Pro user stick calibration unavailable; trying factory calibration.\r\n");
             }
-            if (!found) {
-                form.AppendTextBox("Using factory stick calibration data.\r\n");
-                buf_ = ReadSPI(0x60, (isLeft ? (byte)0x3d : (byte)0x46), 9); // get user calibration data if possible
-            }
+            byte[] factory = ReadSpiCalibration(0x60, left ? (byte)0x3d : (byte)0x46, 9, exchange);
+            form.AppendTextBox("Using factory stick calibration data.\r\n");
+            return factory;
+        }
+
+        private void LoadDeviceCalibration(Func<byte[], Action<byte[], int>, byte[]> exchange) {
+            byte[] ReadSPI(byte high, byte low, uint length) => ReadSpiCalibration(high, low, length, exchange);
+            byte[] buf_ = ReadStickCalibration(isLeft, exchange);
             stick_cal[isLeft ? 0 : 2] = (UInt16)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
             stick_cal[isLeft ? 1 : 3] = (UInt16)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
             stick_cal[isLeft ? 2 : 4] = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
@@ -1273,19 +1307,7 @@ namespace BetterJoyForCemu {
             PrintArray(stick_cal, len: 6, start: 0, format: "Stick calibration data: {0:S}");
 
             if (isPro) {
-                buf_ = ReadSPI(0x80, (!isLeft ? (byte)0x12 : (byte)0x1d), 9); // get user calibration data if possible
-                found = false;
-                for (int i = 0; i < 9; ++i) {
-                    if (buf_[i] != 0xff) {
-                        form.AppendTextBox("Using user stick calibration data.\r\n");
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    form.AppendTextBox("Using factory stick calibration data.\r\n");
-                    buf_ = ReadSPI(0x60, (!isLeft ? (byte)0x3d : (byte)0x46), 9); // get user calibration data if possible
-                }
+                buf_ = ReadStickCalibration(!isLeft, exchange);
                 stick2_cal[!isLeft ? 0 : 2] = (UInt16)((buf_[1] << 8) & 0xF00 | buf_[0]); // X Axis Max above center
                 stick2_cal[!isLeft ? 1 : 3] = (UInt16)((buf_[2] << 4) | (buf_[1] >> 4));  // Y Axis Max above center
                 stick2_cal[!isLeft ? 2 : 4] = (UInt16)((buf_[4] << 8) & 0xF00 | buf_[3]); // X Axis Center
@@ -1348,26 +1370,38 @@ namespace BetterJoyForCemu {
 
                 PrintArray(gyr_neutral, len: 3, d: DebugType.IMU, format: "Factory gyro neutral position: {0:S}");
             }
-            HIDapi.hid_set_nonblocking(handle, 1);
         }
 
-        private byte[] ReadSPI(byte addr1, byte addr2, uint len, bool print = false) {
+        private sealed class MissingSpiCalibrationException : System.IO.IOException {
+            public bool HasInputStream { get; }
+
+            public MissingSpiCalibrationException(string message, bool hasInputStream) : base(message) {
+                HasInputStream = hasInputStream;
+            }
+        }
+
+        private byte[] ReadSpiCalibration(byte addr1, byte addr2, uint len, Func<byte[], Action<byte[], int>, byte[]> exchange) {
             byte[] buf = { addr2, addr1, 0x00, 0x00, (byte)len };
             byte[] read_buf = new byte[len];
-            byte[] buf_ = new byte[len + 20];
+            byte[] buf_ = Array.Empty<byte>();
+            int validInputs = 0;
+            bool receivedSpiReply = false;
 
             for (int i = 0; i < 3; ++i) {
-                buf_ = Subcommand(0x10, buf, 5, false);
+                buf_ = exchange(buf, (report, length) => {
+                    if (InputReportGuard.IsInputReport(report, length, true)) ++validInputs;
+                    if (length >= 15 && length <= report.Length && report[0] == 0x21 && report[14] == 0x10) receivedSpiReply = true;
+                });
                 if (buf_.Length >= 20 + len && buf_[0] == 0x21 && (buf_[13] & 0x80) != 0 &&
                     buf_[14] == 0x10 && buf_[15] == addr2 && buf_[16] == addr1 &&
                     buf_[17] == 0 && buf_[18] == 0 && buf_[19] == len) {
                     Array.Copy(buf_, 20, read_buf, 0, len);
-                    if (print) PrintArray(read_buf, DebugType.COMMS, len);
                     return read_buf;
                 }
             }
-            throw new System.IO.IOException(String.Format("Calibration reply missing or invalid: address=0x{0:X2}{1:X2}, expectedDataLength={2}, replyLength={3}, replyId={4}. Reconnect the controller.",
-                addr1, addr2, len, buf_.Length, buf_.Length > 0 ? "0x" + buf_[0].ToString("X2") : "none"));
+            throw new MissingSpiCalibrationException(String.Format("Calibration reply missing or invalid: address=0x{0:X2}{1:X2}, expectedDataLength={2}, replyLength={3}, replyId={4}, validInputReports={5}.",
+                addr1, addr2, len, buf_.Length, buf_.Length > 0 ? "0x" + buf_[0].ToString("X2") : "none", validInputs),
+                !receivedSpiReply && UsbConnectionHelper.IsEstablishedStream(validInputs));
         }
 
         private void PrintArray<T>(T[] arr, DebugType d = DebugType.NONE, uint len = 0, uint start = 0, string format = "{0:S}") {

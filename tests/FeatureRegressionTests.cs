@@ -11,6 +11,79 @@ class FeatureRegressionTests {
         Environment.Exit(1);
     }
 
+    static void CheckUsbReceiverCalibration(MainForm form) {
+        var device = new Joycon(IntPtr.Zero, true, false, .05f, true, "usb-receiver-test", "usb-receiver-test", 0, true, false, false, false, true);
+        device.form = form;
+        device.battery = 4;
+        var load = typeof(Joycon).GetMethod("LoadCalibration", BindingFlags.Instance | BindingFlags.NonPublic);
+        var frame = new byte[49]; frame[0] = 0x30; frame[2] = 0x80;
+        frame[7] = frame[10] = 0x08;
+        frame[8] = frame[11] = 0x80;
+        Func<byte[], Action<byte[], int>, byte[]> streamed = (request, observe) => {
+            for (int i = 0; i < 10; i++) observe?.Invoke(frame, frame.Length);
+            return frame;
+        };
+        try { load.Invoke(device, new object[] { streamed }); }
+        catch (TargetInvocationException e) { Fail("USB Pro cannot start when calibration exchanges return only full 0x30 frames: " + e.InnerException.Message); }
+        var process = typeof(Joycon).GetMethod("ProcessInputReport", BindingFlags.Instance | BindingFlags.NonPublic);
+        process.Invoke(device, new object[] { frame, 49, 0L });
+        process.Invoke(device, new object[] { frame, 49, 300L });
+        if (!device.InputReady || device.GetStick()[0] != 0 || device.GetStick2()[1] != 0)
+            Fail("USB receiver did not settle with both sticks neutral using configured calibration");
+        frame[3] = 0x08; frame[6] = 0xff; frame[7] = 0x0b; frame[19] = 0x32;
+        process.Invoke(device, new object[] { frame, 49, 320L });
+        if (!device.GetButton(Joycon.Button.A) || device.GetStick()[0] < .25f || device.packetCounter != 0 || device.Timestamp != 0)
+            Fail("USB receiver fallback did not pass buttons/sticks while suppressing motion");
+        frame[3] = 0; frame[6] = 0; frame[7] = 0x08;
+        process.Invoke(device, new object[] { frame, 49, 340L });
+        if (device.GetButton(Joycon.Button.A) || device.GetStick()[0] != 0)
+            Fail("USB receiver fallback did not release input");
+
+        var calibrated = new Joycon(IntPtr.Zero, true, false, .05f, true, "usb-calibration-test", "usb-calibration-test", 0, true, false, false, false, true);
+        calibrated.form = form;
+        calibrated.battery = 4;
+        bool triedFactoryStick = false;
+        Func<byte[], Action<byte[], int>, byte[]> calibratedExchange = (request, observe) => {
+            if (request[1] == 0x80 && request[0] == 0x12) return streamed(request, observe);
+            if (request[1] == 0x60 && request[0] == 0x3d) triedFactoryStick = true;
+            var reply = new byte[49]; reply[0] = 0x21; reply[13] = 0x90; reply[14] = 0x10;
+            Array.Copy(request, 0, reply, 15, request.Length);
+            if (request[4] == 9) {
+                for (int i = 20; i < 29; i += 3) { reply[i + 1] = 0x08; reply[i + 2] = 0x80; }
+            }
+            if (request[1] == 0x80 && (request[0] == 0x2e || request[0] == 0x3a)) {
+                reply[21] = reply[23] = reply[25] = 0x40;
+            }
+            observe(reply, reply.Length);
+            return reply;
+        };
+        load.Invoke(calibrated, new object[] { calibratedExchange });
+        process.Invoke(calibrated, new object[] { frame, 49, 0L });
+        if (!triedFactoryStick || calibrated.packetCounter != 3)
+            Fail("Working factory calibration did not preserve motion after missing user calibration");
+
+        var bluetooth = new Joycon(IntPtr.Zero, true, false, .05f, true, "bluetooth-calibration-test", "bluetooth-calibration-test", 0, true);
+        bluetooth.form = form;
+        ExpectCalibrationFailure(load, bluetooth, streamed, "Bluetooth Pro unexpectedly used USB fallback");
+        ExpectCalibrationFailure(load, calibrated, (request, observe) => {
+            for (int i = 0; i < 10; i++) observe(frame, 48);
+            return new byte[48];
+        }, "Truncated frames incorrectly enabled calibration fallback");
+        ExpectCalibrationFailure(load, calibrated, (request, observe) => {
+            streamed(request, observe);
+            var badReply = new byte[49]; badReply[0] = 0x21; badReply[14] = 0x10;
+            observe(badReply, badReply.Length);
+            return badReply;
+        }, "Malformed SPI response incorrectly enabled calibration fallback");
+        Console.WriteLine("PASS: USB-only streaming calibration fallback, factory preference, strict reply validation, and neutral gameplay input");
+    }
+
+    static void ExpectCalibrationFailure(MethodInfo load, Joycon device, Func<byte[], Action<byte[], int>, byte[]> exchange, string message) {
+        try { load.Invoke(device, new object[] { exchange }); }
+        catch (TargetInvocationException e) when (e.InnerException is IOException) { return; }
+        Fail(message);
+    }
+
     [STAThread]
     static void Main() {
         var profile = LocateRumbleProfile.FromConfiguration();
@@ -57,6 +130,7 @@ class FeatureRegressionTests {
             form.Opacity = 0;
             form.Show();
             Application.DoEvents();
+            CheckUsbReceiverCalibration(form);
             var receiver = new Joycon(IntPtr.Zero, true, false, .05f, true, "receiver-test", "receiver-test", 0, true, false, false, true);
             receiver.form = form;
             receiver.battery = 0;
